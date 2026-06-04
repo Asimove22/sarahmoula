@@ -1,38 +1,14 @@
-import { motion } from 'framer-motion'
-import { useInView } from 'framer-motion'
+import { motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import { ShoppingBag, Users, Lightbulb, Globe2 } from 'lucide-react'
+import { useLang } from '../context/LangContext'
 
-const piliers = [
-  {
-    icon: ShoppingBag,
-    title: 'Marketplace d\'Investissement',
-    desc: 'Projets vérifiés, due diligence intégrée, co-investissement en pool et suivi en temps réel. Ticket d\'entrée accessible, risques mutualisés.',
-    sectors: ['Agro-industrie', 'Tech', 'Tourisme', 'Santé', 'Énergie', 'BTP'],
-  },
-  {
-    icon: Users,
-    title: 'Matching de Compétences',
-    desc: 'Mise en relation entre experts diaspora — médecins, ingénieurs, juristes, financiers — et entreprises algériennes. Transfert de savoir-faire concret.',
-    sectors: ['Médecine', 'Ingénierie', 'Finance', 'Droit'],
-  },
-  {
-    icon: Lightbulb,
-    title: 'Incubateur Diaspora',
-    desc: 'Accompagnement complet : assistance juridique, réseau de partenaires locaux vérifiés, études de marché sectorielles et mentorat personnalisé.',
-    sectors: ['Juridique', 'Réseau terrain', 'Mentorat', 'Études'],
-  },
-  {
-    icon: Globe2,
-    title: 'Communauté & Réseau',
-    desc: 'Espace communautaire par pays et secteur. Événements à Alger, Paris, Montréal. Programme d\'ambassadeurs diaspora international.',
-    sectors: ['France', 'Canada', 'Allemagne', 'UK', 'Émirats'],
-  },
-]
+const icons = [ShoppingBag, Users, Lightbulb, Globe2]
 
-function PilierCard({ p, i }: { p: typeof piliers[0]; i: number }) {
+function PilierCard({ p, i }: { p: { title: string; desc: string; sectors: readonly string[] }; i: number }) {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
+  const Icon = icons[i]
   return (
     <motion.div
       ref={ref}
@@ -42,7 +18,7 @@ function PilierCard({ p, i }: { p: typeof piliers[0]; i: number }) {
       className="group relative p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-green-dz/50 hover:bg-white/8 transition-all duration-300"
     >
       <div className="w-12 h-12 rounded-xl bg-green-dz/20 flex items-center justify-center mb-4 group-hover:bg-green-dz/30 transition-colors">
-        <p.icon className="text-green-dz" size={22} />
+        <Icon className="text-green-dz" size={22} />
       </div>
       <h3 className="text-white font-bold text-lg mb-3">{p.title}</h3>
       <p className="text-slate-400 text-sm leading-relaxed mb-4">{p.desc}</p>
@@ -61,6 +37,8 @@ function PilierCard({ p, i }: { p: typeof piliers[0]; i: number }) {
 export default function Apropos() {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true })
+  const { t } = useLang()
+  const { apropos: a } = t
 
   return (
     <section id="apropos" className="py-28 relative">
@@ -74,31 +52,29 @@ export default function Apropos() {
           className="text-center mb-16"
         >
           <span className="inline-block px-4 py-1.5 rounded-full border border-green-dz/40 text-green-dz text-sm font-medium mb-4">
-            À propos
+            {a.badge}
           </span>
           <h2 className="font-display text-4xl md:text-5xl font-bold text-white mb-6">
-            Un catalyseur pour le{' '}
+            {a.headline1}{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold-dz to-gold-light">
-              co-développement
+              {a.headline2}
             </span>
           </h2>
           <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-            DzBridge mobilise les capitaux, les compétences et l'énergie entrepreneuriale
-            de la diaspora algérienne au service du développement économique de l'Algérie.
-            Forte de <strong className="text-white">4,2 millions d'Algériens à l'étranger</strong> et{' '}
-            <strong className="text-white">2,1 milliards d'euros de transferts annuels</strong>,
-            cette diaspora est un levier sous-exploité que DzBridge entend transformer.
+            {a.subtitle_1}
+            <strong className="text-white">{a.subtitle_bold1}</strong>
+            {a.subtitle_2}
+            <strong className="text-white">{a.subtitle_bold2}</strong>
+            {a.subtitle_3}
           </p>
         </motion.div>
 
-        {/* 4 piliers */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {piliers.map((p, i) => (
+          {a.piliers.map((p, i) => (
             <PilierCard key={i} p={p} i={i} />
           ))}
         </div>
 
-        {/* Quote */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -107,9 +83,9 @@ export default function Apropos() {
           className="mt-16 text-center p-8 rounded-2xl border border-gold-dz/20 bg-gold-dz/5"
         >
           <p className="text-xl md:text-2xl font-display text-white italic mb-3">
-            "DzBridge n'est pas un SaaS classique. C'est une communauté qui devient une plateforme business."
+            "{a.quote}"
           </p>
-          <span className="text-gold-dz text-sm font-medium">— Stratégie Go-To-Market DzBridge 2026</span>
+          <span className="text-gold-dz text-sm font-medium">{a.quote_source}</span>
         </motion.div>
       </div>
     </section>
