@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { TrendingUp, RefreshCw, ExternalLink } from 'lucide-react'
+import { TrendingUp, ExternalLink } from 'lucide-react'
 import { fetchAlgeriaIndicators, formatValue, type Indicator } from '../services/worldbank'
 import { useLang } from '../context/LangContext'
 
@@ -24,19 +24,23 @@ const LABELS_IT: Record<string, string> = {
 
 export default function Indicators() {
   const [data, setData] = useState<Indicator[]>(FALLBACK)
-  const [loading, setLoading] = useState(true)
   const [live, setLive] = useState(false)
   const { lang } = useLang()
 
   useEffect(() => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 6000)
+
     fetchAlgeriaIndicators()
       .then((res) => {
         const merged = res.map((r, i) => (r.value !== null ? r : FALLBACK[i]))
         setData(merged)
         setLive(true)
       })
-      .catch(() => setLive(false))
-      .finally(() => setLoading(false))
+      .catch(() => {})
+      .finally(() => clearTimeout(timeout))
+
+    return () => { controller.abort(); clearTimeout(timeout) }
   }, [])
 
   const label = (fr: string) => lang === 'it' ? (LABELS_IT[fr] ?? fr) : fr
@@ -64,13 +68,9 @@ export default function Indicators() {
             <div>
               <h2 className="text-white font-bold text-lg">{sectionLabel}</h2>
               <div className="flex items-center gap-2 mt-0.5">
-                {loading ? (
-                  <RefreshCw size={12} className="text-slate-500 animate-spin" />
-                ) : (
-                  <span className={`w-2 h-2 rounded-full ${live ? 'bg-green-dz animate-pulse' : 'bg-gold-dz'}`} />
-                )}
+                <span className={`w-2 h-2 rounded-full ${live ? 'bg-green-dz animate-pulse' : 'bg-gold-dz'}`} />
                 <span className="text-slate-500 text-xs">
-                  {loading ? '...' : live ? liveLabel : fallbackLabel}
+                  {live ? liveLabel : fallbackLabel}
                 </span>
               </div>
             </div>
@@ -100,11 +100,7 @@ export default function Indicators() {
               className="group p-4 rounded-2xl bg-white/4 border border-white/8 hover:border-green-dz/30 hover:bg-white/6 transition-all duration-200 cursor-pointer"
             >
               <div className="text-2xl font-black text-white mb-1 group-hover:text-green-dz transition-colors">
-                {loading ? (
-                  <span className="inline-block w-16 h-7 bg-white/10 rounded animate-pulse" />
-                ) : (
-                  formatValue(ind.value, ind.unit)
-                )}
+                {formatValue(ind.value, ind.unit)}
               </div>
               <div className="text-slate-300 text-xs font-medium mb-2">{label(ind.label)}</div>
               <div className="flex items-center justify-between">
