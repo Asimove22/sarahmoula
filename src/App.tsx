@@ -1,6 +1,7 @@
 import { LangProvider } from './context/LangContext'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
+import Indicators from './components/Indicators'
 import Apropos from './components/Apropos'
 import Services from './components/Services'
 import Portfolio from './components/Portfolio'
@@ -16,6 +17,7 @@ export default function App() {
         <Navbar />
         <main>
           <Hero />
+          <Indicators />
           <Apropos />
           <Services />
           <Portfolio />

@@ -1,0 +1,32 @@
+name: Monthly Algeria Economic Report
+
+# Runs on the 1st of every month at 07:00 UTC
+# Also triggerable manually from GitHub Actions tab
+on:
+  schedule:
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate monthly report
+        run: node scripts/generate-monthly-report.mjs
+
+      - name: Commit report to repository
+        run: |
+          git config --global user.name "DzBridge Data Bot"
+          git config --global user.email "bot@dzbridge.fr"
+          git add content/reports/
+          git diff --cached --quiet || git commit -m "data: monthly Algeria economic report $(date +'%B %Y')"
+          git push
