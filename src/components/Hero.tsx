@@ -1,17 +1,12 @@
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import Logo from './Logo'
-
-const stats = [
-  { value: '4,2M', label: 'Algériens à l\'étranger' },
-  { value: '€2,1B', label: 'Transferts annuels' },
-  { value: '60%', label: 'Souhaitent investir' },
-  { value: '€850M', label: 'Marché adressable' },
-]
-
-const countries = ['France 2,5M', 'Canada 350K', 'Allemagne 200K', 'Royaume-Uni 180K', 'Émirats 150K']
+import { useLang } from '../context/LangContext'
 
 export default function Hero() {
+  const { t } = useLang()
+  const { hero } = t
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background */}
@@ -63,7 +58,7 @@ export default function Hero() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gold-dz/40 bg-gold-dz/10 text-gold-dz text-sm font-medium mb-6"
         >
           <span className="w-2 h-2 rounded-full bg-gold-dz animate-pulse" />
-          Plateforme Numérique de la Diaspora Algérienne · 2026
+          {hero.badge}
         </motion.div>
 
         {/* Headline */}
@@ -73,12 +68,12 @@ export default function Hero() {
           transition={{ duration: 0.7, delay: 0.15 }}
           className="font-display text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6"
         >
-          La passerelle de la{' '}
+          {hero.headline1}{' '}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold-dz to-gold-light">
-            diaspora algérienne
+            {hero.headline2}
           </span>
           <br />
-          vers <span className="text-green-dz">l'Algérie de demain</span>
+          {hero.headline3} <span className="text-green-dz">{hero.headline4}</span>
         </motion.h1>
 
         {/* Subtitle */}
@@ -88,8 +83,7 @@ export default function Hero() {
           transition={{ duration: 0.7, delay: 0.25 }}
           className="text-slate-300 text-lg md:text-xl max-w-2xl mx-auto mb-4 leading-relaxed"
         >
-          DzBridge connecte investisseurs diaspora et porteurs de projets algériens.
-          Investissement · Compétences · Incubation · Communauté.
+          {hero.subtitle}
         </motion.p>
 
         {/* Country tags */}
@@ -99,7 +93,7 @@ export default function Hero() {
           transition={{ delay: 0.35 }}
           className="flex flex-wrap justify-center gap-2 mb-10"
         >
-          {countries.map((c) => (
+          {hero.countries.map((c) => (
             <span key={c} className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 text-xs">
               {c}
             </span>
@@ -117,14 +111,14 @@ export default function Hero() {
             href="#contact"
             className="group inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-gold-dz text-navy-dz font-bold text-base hover:bg-gold-light transition-all duration-200 shadow-lg shadow-gold-dz/20"
           >
-            Rejoindre la plateforme
+            {hero.cta_primary}
             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
           </a>
           <a
             href="#apropos"
             className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 text-white font-semibold text-base hover:border-green-dz/50 hover:bg-green-dz/5 transition-all duration-200"
           >
-            Découvrir le projet
+            {hero.cta_secondary}
           </a>
         </motion.div>
 
@@ -135,7 +129,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.5 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto"
         >
-          {stats.map((s, i) => (
+          {hero.stats.map((s, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, scale: 0.9 }}

@@ -2,23 +2,25 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 import Logo from './Logo'
-
-const links = [
-  { label: 'À propos', href: '#apropos' },
-  { label: 'Services', href: '#services' },
-  { label: 'Opportunités', href: '#portfolio' },
-  { label: 'Contact', href: '#contact' },
-]
+import { useLang } from '../context/LangContext'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const { lang, setLang, t } = useLang()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const links = [
+    { label: t.nav.apropos, href: '#apropos' },
+    { label: t.nav.services, href: '#services' },
+    { label: t.nav.opportunites, href: '#portfolio' },
+    { label: t.nav.contact, href: '#contact' },
+  ]
 
   return (
     <motion.header
@@ -51,16 +53,40 @@ export default function Navbar() {
           ))}
         </nav>
 
-        {/* CTA */}
+        {/* Right side: lang toggle + CTA */}
         <div className="hidden md:flex items-center gap-3">
+          {/* Language toggle */}
+          <div className="flex items-center rounded-lg border border-white/10 overflow-hidden text-xs font-semibold">
+            <button
+              onClick={() => setLang('fr')}
+              className={`px-3 py-1.5 transition-colors duration-150 ${
+                lang === 'fr'
+                  ? 'bg-gold-dz text-navy-dz'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              FR
+            </button>
+            <button
+              onClick={() => setLang('it')}
+              className={`px-3 py-1.5 transition-colors duration-150 ${
+                lang === 'it'
+                  ? 'bg-gold-dz text-navy-dz'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              IT
+            </button>
+          </div>
+
           <span className="text-slate-500 text-xs border border-green-dz/30 px-2 py-1 rounded-full text-green-dz">
-            Phase 1 · En cours
+            {t.nav.phase}
           </span>
           <a
             href="#contact"
             className="px-5 py-2 rounded-lg bg-gold-dz text-navy-dz text-sm font-bold hover:bg-gold-light transition-all duration-200"
           >
-            Rejoindre DzBridge
+            {t.nav.cta}
           </a>
         </div>
 
@@ -94,12 +120,32 @@ export default function Navbar() {
                   {l.label}
                 </a>
               ))}
+
+              {/* Mobile lang toggle */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-slate-500 text-xs">Langue :</span>
+                <div className="flex rounded-lg border border-white/10 overflow-hidden text-xs font-semibold">
+                  <button
+                    onClick={() => setLang('fr')}
+                    className={`px-3 py-1.5 transition-colors ${lang === 'fr' ? 'bg-gold-dz text-navy-dz' : 'text-slate-400'}`}
+                  >
+                    FR
+                  </button>
+                  <button
+                    onClick={() => setLang('it')}
+                    className={`px-3 py-1.5 transition-colors ${lang === 'it' ? 'bg-gold-dz text-navy-dz' : 'text-slate-400'}`}
+                  >
+                    IT
+                  </button>
+                </div>
+              </div>
+
               <a
                 href="#contact"
                 onClick={() => setOpen(false)}
                 className="mt-2 px-5 py-3 rounded-lg bg-gold-dz text-navy-dz text-sm font-bold text-center"
               >
-                Rejoindre DzBridge
+                {t.nav.cta}
               </a>
             </div>
           </motion.div>
