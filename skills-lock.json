@@ -1225,6 +1225,12 @@
       "skillPath": "engineering/grill-me/skills/grill-me/SKILL.md",
       "computedHash": "2c7cc3444a7e7b8c510d2cf366cecf7374d054b26421aa5ab449c4761d28294e"
     },
+    "gstack": {
+      "source": "garrytan/gstack",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "962bd2e3009e9da7e384c75f4b23a46a457b6492842973c78b633bfb58c87b47"
+    },
     "handbook-updates": {
       "source": "anthropics/claude-for-legal",
       "sourceType": "github",
