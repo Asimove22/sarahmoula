@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "instagram": {
+      "type": "http",
+      "url": "https://mcp.instagram.com/mcp"
+    }
+  }
+}
