@@ -1,0 +1,102 @@
+{
+  "account": {
+    "username": "impactamine",
+    "type": "business"
+  },
+
+  "api": {
+    "version": "v21.0",
+    "base_url": "https://graph.facebook.com",
+    "rate_limit": {
+      "max_posts_per_hour": 25,
+      "max_posts_per_day": 100,
+      "retry_max_attempts": 3,
+      "retry_base_delay_seconds": 60
+    }
+  },
+
+  "publishing": {
+    "default_location": null,
+    "auto_add_hashtags": true,
+    "max_hashtags": 30,
+    "hashtag_position": "caption_end"
+  },
+
+  "hashtags": {
+    "general": [
+      "#impactamine",
+      "#impact",
+      "#motivation",
+      "#success",
+      "#mindset",
+      "#growth",
+      "#entrepreneur",
+      "#leadership"
+    ],
+    "fitness": [
+      "#fitness",
+      "#workout",
+      "#gym",
+      "#training",
+      "#health",
+      "#wellness",
+      "#fitnessmotivation",
+      "#bodybuilding",
+      "#sport"
+    ],
+    "business": [
+      "#business",
+      "#entrepreneur",
+      "#startup",
+      "#marketing",
+      "#branding",
+      "#digitalmarketing",
+      "#success",
+      "#money",
+      "#finance"
+    ],
+    "lifestyle": [
+      "#lifestyle",
+      "#dailylife",
+      "#inspiration",
+      "#positivity",
+      "#mindfulness",
+      "#selfimprovement",
+      "#personaldevelopment",
+      "#goals"
+    ],
+    "morocco": [
+      "#maroc",
+      "#morocco",
+      "#casablanca",
+      "#moroccan",
+      "#maghreb",
+      "#marrakech",
+      "#rabat"
+    ],
+    "arabic": [
+      "#تحفيز",
+      "#نجاح",
+      "#رياضة",
+      "#صحة",
+      "#أعمال",
+      "#ريادة_أعمال"
+    ]
+  },
+
+  "media": {
+    "supported_image_formats": ["jpg", "jpeg", "png"],
+    "supported_video_formats": ["mp4", "mov"],
+    "max_image_size_mb": 8,
+    "max_video_size_mb": 100,
+    "max_video_duration_seconds": 900,
+    "min_video_duration_seconds": 3
+  },
+
+  "logging": {
+    "level": "INFO",
+    "log_file": "logs/instagram_automation.log",
+    "max_bytes": 10485760,
+    "backup_count": 5
+  }
+}
