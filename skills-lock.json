@@ -235,6 +235,12 @@
       "skillPath": "c-level-advisor/c-level-agents/skills/boardroom/SKILL.md",
       "computedHash": "fc47a21a81015d7ba7d6fc0c13cb59493d1aa50d1765d3d9f9963c0327b34bc2"
     },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "8df9b47092524833138b58682d03f2e153a242e550d1693657afdbee0cc9cdb0"
+    },
     "brand-guidelines": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -895,6 +901,12 @@
       "skillPath": "legal-builder-hub/skills/disable/SKILL.md",
       "computedHash": "7da4d93dace7deed197acf64cae2d1e15be254e70313dfd51548ca83657285e1"
     },
+    "dispatching-parallel-agents": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/dispatching-parallel-agents/SKILL.md",
+      "computedHash": "e21044ae7496fc285f1df9ff3fb518a3a20bea6f5216c1f59f4987e12c769a0a"
+    },
     "docker-development": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -1003,6 +1015,12 @@
       "skillPath": "c-level-advisor/c-level-agents/skills/execute/SKILL.md",
       "computedHash": "ae27c3d3bd3d5e239da6c0dd6a2db15e917481d66b270b01ac6537ae2f614e23"
     },
+    "executing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/executing-plans/SKILL.md",
+      "computedHash": "b41c919caf1bb07fbacb0e29899ac513f9eb11cd4dd695975ad352c2c03cc4d7"
+    },
     "executive-mentor": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -1062,6 +1080,12 @@
       "sourceType": "github",
       "skillPath": "finance/skills/financial-analyst/SKILL.md",
       "computedHash": "b3cb8e8f4f75dd95ddf2dd7ac5ac8b62094f5b63c51fdcecc3356db06dce9baa"
+    },
+    "finishing-a-development-branch": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/finishing-a-development-branch/SKILL.md",
+      "computedHash": "932d23af11a3eb2b758f5b1d9aec7b6d28ddd26658328414f87f34dff7179d19"
     },
     "fix": {
       "source": "alirezarezvani/claude-skills",
@@ -2017,6 +2041,12 @@
       "skillPath": "legal-clinic/skills/ramp/SKILL.md",
       "computedHash": "cb438c0009e9b1e41de0a098bb8b1c76866885a1edb2ca69cfebdbdc6bfc572d"
     },
+    "receiving-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/receiving-code-review/SKILL.md",
+      "computedHash": "2760c85d4f4117b0006e7ba755f4bbd61f8f4c185f347999763c97f507274e30"
+    },
     "red-team": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2094,6 +2124,12 @@
       "sourceType": "github",
       "skillPath": "engineering-team/playwright-pro/skills/report/SKILL.md",
       "computedHash": "27962537f7b7caa785fe16239924d681dede27482be114cd04820df5d65249f3"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/requesting-code-review/SKILL.md",
+      "computedHash": "874f3786b05007a8b4a60452a4cd89b9917c645d34b6b1e40ea05037d12f0e67"
     },
     "research": {
       "source": "alirezarezvani/claude-skills",
@@ -2545,6 +2581,12 @@
       "skillPath": "law-student/skills/study-plan/SKILL.md",
       "computedHash": "d93d0aa8d172affb01655c51cf3f49743657037449adac728a0fb61850857e13"
     },
+    "subagent-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/subagent-driven-development/SKILL.md",
+      "computedHash": "b38be2f3a092d758127f6d47e77c2493885aebf38aae359e4c786df2c343b837"
+    },
     "subpoena-triage": {
       "source": "anthropics/claude-for-legal",
       "sourceType": "github",
@@ -2562,6 +2604,12 @@
       "sourceType": "github",
       "skillPath": "research/syllabus/skills/syllabus/SKILL.md",
       "computedHash": "e1fd2968e93477557d82442b3abf5eac3ab2b5fff3aa9929ea6a5e3ec6f8fa81"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
     },
     "tabular-review": {
       "source": "anthropics/claude-for-legal",
@@ -2617,6 +2665,12 @@
       "skillPath": "engineering/terraform-patterns/skills/terraform-patterns/SKILL.md",
       "computedHash": "f54f4ab969702f342631c2930775b8c3701a79fefc37d4bbb95215486bd6cdd3"
     },
+    "test-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "126f1ebf6ccd414f42544f6e83d8cc5adb089e1108eaffb7c400701e37eecd9f"
+    },
     "testrail": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2647,6 +2701,18 @@
       "skillPath": "privacy-legal/skills/use-case-triage/SKILL.md",
       "computedHash": "fa2a40b3cc80783b4efd2d5f7f1f9bb99c799826530cdc98b2cbc178ea22ccb9"
     },
+    "using-git-worktrees": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/using-git-worktrees/SKILL.md",
+      "computedHash": "bd10bc57c23040630b17c877a9bc7b4be40c35161a2e2f110d770d78e3b0a4ff"
+    },
+    "using-superpowers": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/using-superpowers/SKILL.md",
+      "computedHash": "de10fd3ff46d797acc92b9df6b3ea456a5cd1d095b73c90bc921e83cce4c5bb9"
+    },
     "ux-researcher-designer": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2670,6 +2736,12 @@
       "sourceType": "github",
       "skillPath": "business-operations/skills/vendor-management/SKILL.md",
       "computedHash": "bb46b1cc8a2b03c53ea7bd1d1aa1863d16f686c0e26975e8ca5c7dc974860a51"
+    },
+    "verification-before-completion": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/verification-before-completion/SKILL.md",
+      "computedHash": "9b446f0c7fe1cfb560b1d34439523b1a76d5f177290007b2c053a1c749a4a8ba"
     },
     "video": {
       "source": "coreyhaines31/marketingskills",
@@ -2718,6 +2790,18 @@
       "sourceType": "github",
       "skillPath": "engineering/write-a-skill/skills/write-a-skill/SKILL.md",
       "computedHash": "0bbd95da19cadd7d3d69434b1cb995e36318d1140fabeb52933b210cda056499"
+    },
+    "writing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/writing-plans/SKILL.md",
+      "computedHash": "2b986445454a025ca2c3839f8a2024747e8cce0517948437232cd113d2719060"
+    },
+    "writing-skills": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/writing-skills/SKILL.md",
+      "computedHash": "c0a92e629e39ea91b1f54da67a6aa92723008a8ef5b500c6de078f55485937c7"
     },
     "written-consent": {
       "source": "anthropics/claude-for-legal",
