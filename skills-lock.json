@@ -247,6 +247,12 @@
       "skillPath": "skills/analytics/SKILL.md",
       "computedHash": "11fcba681577e36b5ad88e391d932a9c94fb1e593e94010c750739eefa9c4057"
     },
+    "analytics-dashboard": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/analytics-dashboard/SKILL.md",
+      "computedHash": "8c88169e0305613d057f63f93e9ca7536d6de42ba5ab81630ffde07660567e4c"
+    },
     "analytics-tracking": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -805,6 +811,12 @@
       "skillPath": "marketing-skill/skills/content-humanizer/SKILL.md",
       "computedHash": "adb0d39344e9d2d54ae68c446f82595d5efd677b230aeb0fbb4b83ac7f3c0e68"
     },
+    "content-matrix": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/content-matrix/SKILL.md",
+      "computedHash": "5c769e5e4c1eee18c3885a4fede7a5fff433ffc298c9bae47d65179a87a4efd4"
+    },
     "content-production": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -1321,6 +1333,18 @@
       "skillPath": "ra-qm-team/skills/gdpr-dsgvo-expert/SKILL.md",
       "computedHash": "e429cae49f986163f3f48cd16a3cdd36741dfc0f93aaafb047bf75629d8d7005"
     },
+    "gemini-carousel": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gemini-carousel/SKILL.md",
+      "computedHash": "de17fe1f88198876fd0028459c73133b572ca96a696c048a9f8238781b43bc18"
+    },
+    "gemini-infographic": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gemini-infographic/SKILL.md",
+      "computedHash": "3a680330cdfa43a175b174cb5058ae5ef07594015baa184547c353b725e91186"
+    },
     "general-counsel-advisor": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -1350,6 +1374,12 @@
       "sourceType": "github",
       "skillPath": "research/grants/skills/grants/SKILL.md",
       "computedHash": "73d49c1d55dc6272b1a878770ba6a173fb0ef21f924f58d0de87c0652dad8bdd"
+    },
+    "graphic-designer": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/graphic-designer/SKILL.md",
+      "computedHash": "5d7321b3ee2864f2d0a590a991e48ab53871a4ee338c2ab42bfe0387d2629c67"
     },
     "grill-me": {
       "source": "alirezarezvani/claude-skills",
@@ -1392,6 +1422,12 @@
       "sourceType": "github",
       "skillPath": "employment-legal/skills/hiring-review/SKILL.md",
       "computedHash": "483a22e9b66263e0d48851aba1bc829ca2bef8ce2518a7ea117c89b2830d53df"
+    },
+    "hook-generator": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/hook-generator/SKILL.md",
+      "computedHash": "bc448b09715e1c87b327da7fd244e10eb5187bbc25d57fdaf6e8b253ead7b7bb"
     },
     "humanizer": {
       "source": "blader/humanizer",
@@ -1837,6 +1873,18 @@
       "skillPath": "commercial-legal/skills/nda-review/SKILL.md",
       "computedHash": "8004d785dcebb93a029af291a022125a66c1573aad9b57c1d42b78f245c15923"
     },
+    "newsletter-voice": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/newsletter-voice/SKILL.md",
+      "computedHash": "217247737386eb56b0e5145c5ec5776e1631932a8ad0db09e7f4ca714d1ab148"
+    },
+    "niche-research": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/niche-research/SKILL.md",
+      "computedHash": "42ef98b269ef648f62b8f15b664979b654c7a20fa9ee96b648cf50c07749844b"
+    },
     "notebooklm": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -1945,6 +1993,12 @@
       "skillPath": "privacy-legal/skills/pia-generation/SKILL.md",
       "computedHash": "0c3f8a1c12c966a649938c9c9908cb5641f44ffd65e77015839f71957f845ed7"
     },
+    "pinned-comment": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pinned-comment/SKILL.md",
+      "computedHash": "be32f9452af71ee268d1cf23a067d888389d8e998495c75d25a71622383bf103"
+    },
     "plain-language-letters": {
       "source": "anthropics/claude-for-legal",
       "sourceType": "github",
@@ -2017,11 +2071,29 @@
       "skillPath": "litigation-legal/skills/portfolio-status/SKILL.md",
       "computedHash": "2c3fb80e43652eb6643c6640e984ce9f8c20c88adcd66b00eff64b24cd10dac9"
     },
+    "post-formatter": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/post-formatter/SKILL.md",
+      "computedHash": "0bc11068d75130d571ac6aacb566b2e8f76d4df28d62c018ff67d78585ffa206"
+    },
     "post-mortem": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
       "skillPath": "c-level-advisor/c-level-agents/skills/post-mortem/SKILL.md",
       "computedHash": "5ca075a6f0c8209f1aa35acd8315ab01613d1d8895f02a0c0a39409e0d13d450"
+    },
+    "post-scorer": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/post-scorer/SKILL.md",
+      "computedHash": "b2fd66723604ac58815aa129d99c93942ade932d981eb8471bb38346eba57fb9"
+    },
+    "post-writer": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/post-writer/SKILL.md",
+      "computedHash": "22fdb721562a4f82499c7ade89970fd0810b388356eefcbd3494d030d6c30c69"
     },
     "postmortem": {
       "source": "alirezarezvani/claude-skills",
@@ -2113,6 +2185,12 @@
       "skillPath": "product-team/skills/product-strategist/SKILL.md",
       "computedHash": "9e372ea31555fc2d7075d2d51c74904ac8bb55719c92e9b3391c41436449a1b8"
     },
+    "profile-optimizer": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/profile-optimizer/SKILL.md",
+      "computedHash": "7cbcbe2d78e9266311c2126c6cb6ca28da56881578a94ed0506e1dd0310115d5"
+    },
     "programmatic-seo": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2167,6 +2245,12 @@
       "skillPath": "ra-qm-team/skills/quality-manager-qms-iso13485/SKILL.md",
       "computedHash": "74a784312655201d6b5c1fafe9ba00cd0d8a8378e48589d0105a369bf0b28613"
     },
+    "quote-post": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/quote-post/SKILL.md",
+      "computedHash": "863c4ac24433d9de302aea843d87929259894b13ceb4d7377c0eadfcaf45fed3"
+    },
     "ra-qm-skills": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2196,6 +2280,12 @@
       "sourceType": "github",
       "skillPath": "engineering-team/skills/red-team/SKILL.md",
       "computedHash": "53d023c2e6ef077ca186e9fc5adf3528eeb1850c246eb35afd48dae4fbcef67a"
+    },
+    "reels-scripting": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reels-scripting/SKILL.md",
+      "computedHash": "6529f227e615c1e53aae93d0db0d92989d65291ce6629e00ae04e9c381a1a4e4"
     },
     "referral-program": {
       "source": "alirezarezvani/claude-skills",
@@ -2899,6 +2989,12 @@
       "skillPath": "skills/video/SKILL.md",
       "computedHash": "8286d39be8d86f9fc1c39b3c340cdebcf9a490f7606ffde566572baa163b1fe7"
     },
+    "voice-builder": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/voice-builder/SKILL.md",
+      "computedHash": "e281452c9b39398eeb93c48979f95f6e27a8e1dc5e52dde00c86af261b3778d2"
+    },
     "vpe-advisor": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2970,6 +3066,12 @@
       "sourceType": "github",
       "skillPath": "marketing-skill/skills/youtube-full/SKILL.md",
       "computedHash": "ce1c783aa2bda2cd1e122790cfbde75173a69de13da03b0ab98cf6bbf45d48b7"
+    },
+    "youtube-thumbnail": {
+      "source": "charlie947/social-media-skills",
+      "sourceType": "github",
+      "skillPath": "skills/youtube-thumbnail/SKILL.md",
+      "computedHash": "f93a12722947cccf5cadbf99bb648eb5789432da5a6cf26f2cd94bdb46dbac47"
     }
   }
 }
