@@ -175,6 +175,12 @@
       "skillPath": "marketing-skill/skills/aeo/SKILL.md",
       "computedHash": "52346ab0412b7ac15c50033d97165e46c6af4c6f52d23ec626c0ea7b3d74510c"
     },
+    "agent-browser": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "skillPath": "skills/agent-browser/SKILL.md",
+      "computedHash": "edad4d958bc4baf821e3391bb9889a03a8bbc0e4d7f54ee4a5f30837654fed83"
+    },
     "agent-designer": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
