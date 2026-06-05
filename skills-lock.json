@@ -1393,6 +1393,12 @@
       "skillPath": "employment-legal/skills/hiring-review/SKILL.md",
       "computedHash": "483a22e9b66263e0d48851aba1bc829ca2bef8ce2518a7ea117c89b2830d53df"
     },
+    "humanizer": {
+      "source": "blader/humanizer",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "0e456dd5eb31b1fa120b9a584d8661ef591d58d8e0dbe585a24cd2698becf9bb"
+    },
     "image": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
