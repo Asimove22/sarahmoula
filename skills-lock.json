@@ -176,10 +176,10 @@
       "computedHash": "52346ab0412b7ac15c50033d97165e46c6af4c6f52d23ec626c0ea7b3d74510c"
     },
     "agent-browser": {
-      "source": "vercel-labs/agent-browser",
+      "source": "shanraisshan/claude-code-best-practice",
       "sourceType": "github",
-      "skillPath": "skills/agent-browser/SKILL.md",
-      "computedHash": "edad4d958bc4baf821e3391bb9889a03a8bbc0e4d7f54ee4a5f30837654fed83"
+      "skillPath": ".claude/skills/agent-browser/SKILL.md",
+      "computedHash": "b2fef107f15dc710d4d05c34104476fe7a7cf5c02380b7a70ecfa47856dd45e6"
     },
     "agent-designer": {
       "source": "alirezarezvani/claude-skills",
@@ -2113,6 +2113,18 @@
       "skillPath": "engineering/skills/pr-review-expert/SKILL.md",
       "computedHash": "1d6f5f481729ebf2492e2a22700da369a4872d2798cfc6ac0b156ac6a4c8b904"
     },
+    "presentation-structure": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/presentation/presentation-structure/SKILL.md",
+      "computedHash": "b8b39bf6fceed0bc88323b82a5079fb0a396b9be0ec88d1e8b3f299524c0b63f"
+    },
+    "presentation-styling": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/presentation/presentation-styling/SKILL.md",
+      "computedHash": "6080959ee360acd7c1a283009b36bddbcf753c56680a7b1ea4fc29d38a4bbef6"
+    },
     "pricing": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
@@ -3073,6 +3085,12 @@
       "skillPath": "engineering-team/skills/threat-detection/SKILL.md",
       "computedHash": "ba3e6b6320a840eefdb8ad9ac9a205c7908b742301ec6cf398e564fad4ee29f9"
     },
+    "time-skill": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/time-skill/SKILL.md",
+      "computedHash": "09529ed4873c090a18a8849a23b7cbbbe73ce2e76d6b61cb6b89f49cebd579d1"
+    },
     "ui-design-system": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -3133,6 +3151,12 @@
       "skillPath": "skills/verification-before-completion/SKILL.md",
       "computedHash": "9b446f0c7fe1cfb560b1d34439523b1a76d5f177290007b2c053a1c749a4a8ba"
     },
+    "vibe-to-agentic-framework": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/presentation/vibe-to-agentic-framework/SKILL.md",
+      "computedHash": "ac9f08bab16ced92c337ffe4449fdfcf450f4a2a14a01dbce7c6fdc8d5a9214f"
+    },
     "video": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
@@ -3162,6 +3186,18 @@
       "sourceType": "github",
       "skillPath": "employment-legal/skills/wage-hour-qa/SKILL.md",
       "computedHash": "17c8eb94364c6a8578108d331aefd12aa67119b5b6926d2d33dc299b939919c7"
+    },
+    "weather-fetcher": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/weather-fetcher/SKILL.md",
+      "computedHash": "83996f6f4be1ab82f9cb63cc1675d038a7806c3546049993fb61be7752207429"
+    },
+    "weather-svg-creator": {
+      "source": "shanraisshan/claude-code-best-practice",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/weather-svg-creator/SKILL.md",
+      "computedHash": "141149f0c8a20a5e07092fd8f5becb7c70a12c748025a986e332d534d56f8bb3"
     },
     "webinar-marketing": {
       "source": "alirezarezvani/claude-skills",
