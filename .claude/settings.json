@@ -3,6 +3,13 @@
     "instagram": {
       "type": "http",
       "url": "https://mcp.instagram.com/mcp"
+    },
+    "perplexity": {
+      "command": "npx",
+      "args": ["-y", "@perplexity-ai/mcp-server"],
+      "env": {
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+      }
     }
   }
 }
