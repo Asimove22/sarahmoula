@@ -1,194 +1,103 @@
 ---
-name: status
-description: >
-  Case status summary by audience — client-facing (plain language), internal
-  (for the professor), or court-ready (formal caption format per local rules).
-  Same facts, different framing and depth. Use when a student needs to update
-  the client, brief the professor, or prepare a court status report.
-argument-hint: "[client | internal | court]"
+name: "status"
+description: "Memory health dashboard showing line counts, topic files, capacity, stale entries, and recommendations."
 ---
 
-# /status
+# /si:status — Memory Health Dashboard
 
-1. Load `~/.claude/plugins/config/claude-for-legal/legal-clinic/CLAUDE.md` → supervision style, plain-language standards, jurisdiction.
-2. Use the workflow below. Read case notes.
-3. Generate for the specified audience:
-   - `client` — plain language, what happened/next/you do/reach us
-   - `internal` — procedural posture, done since last check-in, upcoming, needs professor input, student's assessment
-   - `court` — formal status report in caption format per local rules
-4. Supervision routing per audience (client-facing and court-ready usually flag).
+Quick overview of your project's memory state across all memory systems.
+
+## Usage
 
 ```
-/legal-clinic:status client
+/si:status                    # Full dashboard
+/si:status --brief            # One-line summary
 ```
 
-```
-/legal-clinic:status internal
-```
+## What It Reports
 
-```
-/legal-clinic:status court
-```
+### Step 1: Locate all memory files
 
----
+```bash
+# Auto-memory directory
+MEMORY_DIR="$HOME/.claude/projects/$(pwd | sed 's|/|%2F|g; s|%2F|/|; s|^/||')/memory"
 
-# Status: Audience-Aware Case Summaries
+# Count lines in MEMORY.md
+wc -l "$MEMORY_DIR/MEMORY.md" 2>/dev/null || echo "0"
 
-## Purpose
+# List topic files
+ls "$MEMORY_DIR/"*.md 2>/dev/null | grep -v MEMORY.md
 
-Clinics generate enormous numbers of status updates — to clients, to professors, to co-counsel, to courts. Same case, same facts, completely different documents. This skill takes the case notes and produces the right summary for the right reader.
+# CLAUDE.md
+wc -l ./CLAUDE.md 2>/dev/null || echo "0"
+wc -l ~/.claude/CLAUDE.md 2>/dev/null || echo "0"
 
-## Load context
-
-`~/.claude/plugins/config/claude-for-legal/legal-clinic/CLAUDE.md` → supervision style, plain-language standards (for client-facing), jurisdiction.
-Case notes for facts.
-
-## Audience modes
-
-### Client-facing
-
-**Reader:** The client. Probably stressed. Possibly unfamiliar with legal process. Reading level per `~/.claude/plugins/config/claude-for-legal/legal-clinic/CLAUDE.md` plain-language standards (default 6th grade).
-
-**Include:**
-- What's happened since they last heard from the clinic
-- What's happening next and when
-- What (if anything) they need to do
-- How to reach the clinic
-
-**Don't include:**
-- Legal analysis (they don't need to know the IRAC)
-- Weaknesses in their case (unless it's time to have that conversation — and that's a call for the professor, not a status update)
-- Jargon
-
-*Review label for the student (not for the client — strip before sending):*
-`[AI-ASSISTED DRAFT — requires student review and supervision step per plugin config]`
-
-Check your jurisdiction's student practice rule for required law-student sign-off language; some jurisdictions require specific forms.
-
-```markdown
-Dear [Client],
-
-I wanted to update you on your case.
-
-**What's happened:** [Plain English. "We filed your answer with the court on
-[date]" not "The responsive pleading was submitted."]
-
-**What's next:** [What and when. "The court scheduled a hearing for [date] at
-[time]. You need to be there." Or: "We're waiting for the landlord's lawyer
-to respond. That could take a few weeks."]
-
-**What you need to do:** [Specific and clear. Or: "Nothing right now — we'll
-let you know when we need something from you."]
-
-**How to reach us:** [Clinic phone, hours, student name]
-
-[Student name]
-Law Student, Certified Legal Intern
-Under the supervision of [Supervising Attorney]
-[Clinic name]
+# Rules directory
+ls .claude/rules/*.md 2>/dev/null | wc -l
 ```
 
-**Before sending:** sending a client status update is a consequential action. The gate is the supervision workflow in `## Supervision style` in `~/.claude/plugins/config/claude-for-legal/legal-clinic/CLAUDE.md`, reinforced by the Part 0 role check confirming a licensed supervising attorney owns the setup. Confirm the draft has been reviewed per the supervision protocol (queue / flag / lighter-touch) and all internal review labels (`[AI-ASSISTED DRAFT]`, `[VERIFY]`, etc.) have been removed from the client-facing copy.
+### Step 2: Analyze capacity
 
-### Internal (for the professor)
+| Metric | Healthy | Warning | Critical |
+|--------|---------|---------|----------|
+| MEMORY.md lines | < 120 | 120-180 | > 180 |
+| CLAUDE.md lines | < 150 | 150-200 | > 200 |
+| Topic files | 0-3 | 4-6 | > 6 |
+| Stale entries | 0 | 1-3 | > 3 |
 
-**Reader:** The supervising professor. Knows the law. Wants to know where the case stands and what the student needs from them.
+### Step 3: Quick stale check
 
-**Include:**
-- Procedural status (where in the life of the case)
-- What's been done since last check-in
-- What's coming up (deadlines, hearings)
-- Issues needing professor input
-- Student's assessment (how it's going, concerns)
-
-```markdown
-# Status: [Client] — [Matter] — [date]
-
-**Student:** [name] | **Procedural posture:** [pre-filing / answer filed /
-discovery / motion pending / etc.]
-
-## Since last check-in
-
-- [What's been done]
-
-## Upcoming
-
-| Date | What | Action needed by |
-|---|---|---|
-| [date] | [deadline/hearing] | [date] |
-
-## Needs professor input
-
-- [Question or decision point — specific]
-
-## Student's assessment
-
-[How it's going. Strengths, concerns, strategic questions. This is where the
-student's thinking shows.]
-
----
-[AI-ASSISTED DRAFT — student should revise the assessment section especially;
-that's your thinking, not a summary of notes]
+For each MEMORY.md entry that references a file path:
+```bash
+# Verify referenced files still exist
+grep -oE '[a-zA-Z0-9_/.-]+\.(ts|js|py|md|json|yaml|yml)' "$MEMORY_DIR/MEMORY.md" | while read f; do
+  [ ! -f "$f" ] && echo "STALE: $f"
+done
 ```
 
-### Court-ready
+### Step 4: Output
 
-**Reader:** A judge or clerk. Formal. Specific to what the court needs (often a status report ordered by the court, or a statement in advance of a status conference).
+```
+📊 Memory Status
 
-**Include:**
-- Procedural history (briefly)
-- Current status of discovery/motions/settlement
-- What's outstanding
-- Proposed next steps or scheduling
+  Auto-Memory (MEMORY.md):
+    Lines:        {{n}}/200 ({{bar}}) {{emoji}}
+    Topic files:  {{count}} ({{names}})
+    Last updated: {{date}}
 
-**Format:** Per local rules. Caption, signature block, certificate of service if filed.
+  Project Rules:
+    CLAUDE.md:    {{n}} lines
+    Rules:        {{count}} files in .claude/rules/
+    User global:  {{n}} lines (~/.claude/CLAUDE.md)
 
-```markdown
-═══════════════════════════════════════════════════════════════════════
-  AI-ASSISTED DRAFT — requires student analysis and attorney review
-  Court filings ALWAYS require professor review before filing
-═══════════════════════════════════════════════════════════════════════
+  Health:
+    Capacity:     {{healthy/warning/critical}}
+    Stale refs:   {{count}} (files no longer exist)
+    Duplicates:   {{count}} (entries repeated across files)
 
-[Caption per jurisdiction — VERIFY against current local rules]
-
-STATUS REPORT
-
-[Party] respectfully submits this status report pursuant to [the court's
-order of [date] / local rule [X] / in advance of the status conference
-scheduled for [date]].
-
-1. Procedural history: [brief]
-
-2. Current status: [discovery status / motion status / settlement status]
-
-3. Outstanding matters: [what's pending]
-
-4. Proposed next steps: [scheduling, if the court wants input]
-
-[Signature block — student attorney under supervision of [Professor]]
-
-[Certificate of service if filing]
-
----
-
-[VERIFY: caption format, local status report requirements, service
-requirements — per current [Court] rules]
+  {{if recommendations}}
+  💡 Recommendations:
+    - {{recommendation}}
+  {{endif}}
 ```
 
-## Supervision routing
+### Brief mode
 
-Per `~/.claude/plugins/config/claude-for-legal/legal-clinic/CLAUDE.md`:
-- Client-facing → usually a flag trigger (client communication)
-- Internal → no flag (it's going to the professor anyway)
-- Court-ready → always flagged if formal queue enabled (court filings)
+```
+/si:status --brief
+```
 
-## What this skill does NOT do
+Output: `📊 Memory: {{n}}/200 lines | {{count}} rules | {{status_emoji}} {{status_word}}`
 
-- **Decide what to tell the client.** Especially on bad news or case weaknesses — that's a conversation for the student and professor to have, then the student to have with the client. Status updates are status, not strategic advice.
-- **File anything with a court.** Drafts the document; professor reviews; filing per clinic procedure.
-- **Replace the student's assessment in internal status.** The "student's assessment" section is the student's thinking — the draft can scaffold it but can't write it.
+## Interpretation
 
-## Close with the next-steps decision tree
+- **Green (< 60%)**: Plenty of room. Auto-memory is working well.
+- **Yellow (60-90%)**: Getting full. Consider running `/si:review` to promote or clean up.
+- **Red (> 90%)**: Near capacity. Auto-memory may start dropping older entries. Run `/si:review` now.
 
-End with the next-steps decision tree per CLAUDE.md `## Outputs`. Customize the options to what this skill just produced — the five default branches (draft the X, escalate, get more facts, watch and wait, something else) are a starting point, not a lock-in. The tree is the output; the lawyer picks.
+## Tips
 
+- Run `/si:status --brief` as a quick check anytime
+- If capacity is yellow+, run `/si:review` to identify promotion candidates
+- Stale entries waste space — delete references to files that no longer exist
+- Topic files are fine — Claude creates them to keep MEMORY.md under 200 lines

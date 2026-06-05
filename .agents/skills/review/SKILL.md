@@ -1,110 +1,102 @@
 ---
-name: review
-description: >
-  Review a vendor agreement, NDA, or SaaS subscription against your playbook.
-  Identifies the agreement structure from titles, routes to the right review skill
-  (vendor-agreement-review, nda-review, saas-msa-review), and integrates the output
-  into a single memo. Use when the user says "review this contract", "check this
-  MSA", "is this NDA okay", "look at this SaaS agreement", or attaches an inbound
-  agreement for review.
-argument-hint: '[file path | Drive link | [CLM ID] | paste text]'
+name: "review"
+description: >-
+  Review Playwright tests for quality. Use when user says "review tests",
+  "check test quality", "audit tests", "improve tests", "test code review",
+  or "playwright best practices check".
 ---
 
-# /review
+# Review Playwright Tests
 
-Reviews an inbound agreement against the playbook in `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md`. Identifies the agreement structure from titles, selects the appropriate skill(s), and — if confirm_routing is enabled — checks with the user before proceeding.
+Systematically review Playwright test files for anti-patterns, missed best practices, and coverage gaps.
 
-## Instructions
+## Input
 
-1. **Load `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md`.** If placeholders present, stop and prompt: "Run `/commercial-legal:cold-start-interview` first — I need to learn your playbook before I can review against it."
+`$ARGUMENTS` can be:
+- A file path: review that specific test file
+- A directory: review all test files in the directory
+- Empty: review all tests in the project's `testDir`
 
-   Also read `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md` → `## Review preferences` → `confirm_routing`. If the field is missing, treat it as `true`.
+## Steps
 
-2. **Get the agreement:** From file path, Drive link, [CLM ID], or pasted text. If none provided, ask.
+### 1. Gather Context
 
-3. **Read the document structure — titles first.**
+- Read `playwright.config.ts` for project settings
+- List all `*.spec.ts` / `*.spec.js` files in scope
+- If reviewing a single file, also check related page objects and fixtures
 
-   Before reading the body, extract:
-   - The main agreement title (e.g., "Master Services Agreement", "Non-Disclosure Agreement")
-   - All exhibit, schedule, addendum, and attachment titles (e.g., "Exhibit A — Data Processing Addendum", "Schedule 1 — Subscription Order Form", "Annex B — Service Level Agreement")
+### 2. Check Each File Against Anti-Patterns
 
-   This is the routing signal. Do not rely on body keywords alone — a 40-page MSA with "confidential" throughout is not an NDA.
+Load `anti-patterns.md` from this skill directory. Check for all 20 anti-patterns.
 
-4. **Select the skill(s) based on document structure.**
+**Critical (must fix):**
+1. `waitForTimeout()` usage
+2. Non-web-first assertions (`expect(await ...)`)
+3. Hardcoded URLs instead of `baseURL`
+4. CSS/XPath selectors when role-based exists
+5. Missing `await` on Playwright calls
+6. Shared mutable state between tests
+7. Test execution order dependencies
 
-   Map each identified document or section to a skill:
+**Warning (should fix):**
+8. Tests longer than 50 lines (consider splitting)
+9. Magic strings without named constants
+10. Missing error/edge case tests
+11. `page.evaluate()` for things locators can do
+12. Nested `test.describe()` more than 2 levels deep
+13. Generic test names ("should work", "test 1")
 
-   | Document / section title contains | Skill |
-   |---|---|
-   | Non-Disclosure, NDA, Confidentiality Agreement (as the *main* agreement) | **nda-review** |
-   | Master Services Agreement, Professional Services, Statement of Work, Consulting Agreement | **vendor-agreement-review** |
-   | Subscription, SaaS, Cloud Services, Order Form with auto-renewal, Software License with recurring fees | **saas-msa-review** (overlay on vendor-agreement-review) |
-   | Data Processing Addendum, DPA, Data Processing Agreement (as exhibit or standalone) | note for **vendor-agreement-review** → data protection section |
-   | Service Level Agreement, SLA (as exhibit) | note for **saas-msa-review** → SLA section |
+**Info (consider):**
+14. No page objects for pages with 5+ locators
+15. Inline test data instead of factory/fixture
+16. Missing accessibility assertions
+17. No visual regression tests for UI-heavy pages
+18. Console error assertions not checked
+19. Network idle waits instead of specific assertions
+20. Missing `test.describe()` grouping
 
-   Multiple skills may apply. Common combinations:
-   - MSA + DPA exhibit → vendor-agreement-review, with DPA noted
-   - SaaS subscription + Order Form + SLA exhibit → saas-msa-review (covers all three)
-   - MSA + Order Form with auto-renewal → vendor-agreement-review + saas-msa-review overlay
+### 3. Score Each File
 
-   When the structure is genuinely ambiguous after reading titles (e.g., a document titled "Agreement" with no exhibits listed), read the first two pages of the body to resolve it — then stop and route.
+Rate 1-10 based on:
+- **9-10**: Production-ready, follows all golden rules
+- **7-8**: Good, minor improvements possible
+- **5-6**: Functional but has anti-patterns
+- **3-4**: Significant issues, likely flaky
+- **1-2**: Needs rewrite
 
-5. **Confirm routing if enabled.**
+### 4. Generate Review Report
 
-   If `confirm_routing` is `true` in `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md` (or field is absent):
+For each file:
+```
+## <filename> — Score: X/10
 
-   ```
-   I'm going to review this as: [agreement type(s)].
+### Critical
+- Line 15: `waitForTimeout(2000)` → use `expect(locator).toBeVisible()`
+- Line 28: CSS selector `.btn-submit` → `getByRole('button', { name: "submit" })`
 
-   Documents identified:
-   - [Main agreement title] → [skill]
-   - [Exhibit A title] → [how it will be handled]
-   - [Exhibit B title] → [how it will be handled]
+### Warning
+- Line 42: Test name "test login" → "should redirect to dashboard after login"
 
-   Sound right? (yes / no — or tell me what I got wrong)
-   ```
-
-   Wait for confirmation before proceeding. If the user corrects the routing, apply their instruction and proceed.
-
-   If `confirm_routing` is `false`: proceed silently. Log the routing decision at the top of the review memo so the user can see what was applied.
-
-6. **Run the skill(s).** Follow each skill's workflow fully. If multiple skills apply, run them in sequence and integrate the output into a single memo — don't produce separate memos.
-
-7. **Check for escalations:** If any issue exceeds the reviewer's authority per the `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md` matrix, invoke **escalation-flagger** to route and draft the ask.
-
-8. **Offer follow-ups:**
-   - Stakeholder summary for the business owner
-   - Redline .docx with tracked changes
-   - [CLM] record creation (if connected)
-   - Add to renewal register (if auto-renewal found)
-
-## Configuring confirm_routing
-
-Add to `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md` → `## Review preferences`:
-
-```markdown
-## Review preferences
-
-confirm_routing: true   # Set to false to skip routing confirmation and proceed automatically
+### Suggestions
+- Consider adding error case: what happens with invalid credentials?
 ```
 
-The cold-start interview should ask about this preference. Default is `true` — confirmation on. As trust builds, the user can set it to `false`.
+### 5. For Project-Wide Review
 
-## Examples
+If reviewing an entire test suite:
+- Spawn sub-agents per file for parallel review (up to 5 concurrent)
+- Or use `/batch` for very large suites
+- Aggregate results into a summary table
 
-```
-/commercial-legal:review vendor-msa.pdf
-```
+### 6. Offer Fixes
 
-```
-/commercial-legal:review https://drive.google.com/file/d/ABC123
-```
+For each critical issue, provide the corrected code. Ask user: "Apply these fixes? [Yes/No]"
 
-```
-/commercial-legal:review
-[paste agreement text]
-```
+If yes, apply all fixes using `Edit` tool.
 
 ## Output
 
-Full review memo per the skill's format. Routing decision logged at the top. Deviation-by-deviation, specific redline language, named approver. Saved where `~/.claude/plugins/config/claude-for-legal/commercial-legal/CLAUDE.md` → House style says work product goes.
+- File-by-file review with scores
+- Summary: total files, average score, critical issue count
+- Actionable fix list
+- Coverage gaps identified (pages/features with no tests)
