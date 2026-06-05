@@ -1,361 +1,246 @@
-# Conversion Tracking Setup
+# Conversion Tracking Setup & Requirements
 
-How to set up conversion tracking pixels across ad platforms. This guide covers installation, event configuration, and validation — everything a marketer needs to ensure ad spend is properly attributed.
+<!-- Updated: 2026-04-13 | v1.5 -->
+<!-- Sources: Google Research PDF 2, Claude Research, Gemini Research -->
 
----
+## Google Ads Conversion Tracking
 
-## Why This Matters
-
-Without conversion tracking:
-- Ad platforms can't optimize for your actual goals
-- You're flying blind on ROAS and CPA
-- Retargeting audiences can't be built
-- You'll waste budget on impressions that don't convert
-
-Get tracking right before spending a dollar on ads.
-
----
-
-## Platform Pixels Overview
-
-| Platform | Pixel/Tag Name | Events API | Key Events |
-|----------|---------------|:----------:|------------|
-| **Google Ads** | Google tag (gtag.js) | Enhanced Conversions | purchase, sign_up, generate_lead |
-| **Meta** | Meta Pixel + CAPI | Conversions API | Purchase, Lead, ViewContent, AddToCart |
-| **LinkedIn** | Insight Tag | Conversions API | conversion (URL or event-based) |
-| **TikTok** | TikTok Pixel | Events API | Purchase, ViewContent, AddToCart, CompleteRegistration |
-| **Twitter/X** | Twitter Pixel | - | Purchase, SignUp, Download |
-
----
-
-## Google Ads
-
-### Install the Google tag
-
-Add to every page, in `<head>`:
-
-```html
-<script async src="https://www.googletagmanager.com/gtag/js?id=AW-XXXXXXXXX"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'AW-XXXXXXXXX');
-</script>
+### Required Stack
 ```
-
-Replace `AW-XXXXXXXXX` with your Conversion ID from Google Ads > Tools > Conversions.
-
-### Set up conversion actions
-
-In Google Ads > Goals > Conversions > New conversion action:
-
-| Conversion | Category | Value | Count |
-|-----------|----------|-------|-------|
-| Purchase | Purchase | Dynamic (order value) | Every |
-| Sign up / Lead | Sign-up | Fixed ($X estimated value) | One |
-| Demo request | Lead | Fixed ($X estimated value) | One |
-| Free trial start | Sign-up | Fixed ($X estimated value) | One |
-
-### Fire conversion events
-
-```javascript
-// Purchase
-gtag('event', 'conversion', {
-  'send_to': 'AW-XXXXXXXXX/CONVERSION_LABEL',
-  'value': 99.00,
-  'currency': 'USD',
-  'transaction_id': 'ORDER-123'
-});
-
-// Lead / Sign up
-gtag('event', 'conversion', {
-  'send_to': 'AW-XXXXXXXXX/CONVERSION_LABEL',
-  'value': 50.00,
-  'currency': 'USD'
-});
+1. Global Site Tag (gtag.js) → all pages
+2. Enhanced Conversions → hashed first-party data (email, phone, address, name)
+3. Consent Mode v2 → MANDATORY for EU/EEA since March 2024
+4. Server-Side GTM → recommended for data durability
+5. Offline Conversion Import → for lead gen (CRM → Google Ads)
 ```
 
 ### Enhanced Conversions
+- Sends SHA-256 hashed first-party data
+- Improves measurement by ~10% more measured conversions
+- Required for smart bidding accuracy in cookie-degraded environments
+- Setup via gtag.js or Google Tag Manager
+- Works alongside standard conversion tracking
 
-Sends hashed first-party data (email, phone) to improve attribution after cookie restrictions. Enable in Google Ads > Goals > Settings > Enhanced conversions.
-
+### Consent Mode v2
 ```javascript
-gtag('set', 'user_data', {
-  'email': 'user@example.com',      // auto-hashed by gtag
-  'phone_number': '+11234567890'
+// Default (before consent)
+gtag('consent', 'default', {
+  'ad_storage': 'denied',
+  'ad_user_data': 'denied',
+  'ad_personalization': 'denied',
+  'analytics_storage': 'denied'
+});
+
+// After user grants consent
+gtag('consent', 'update', {
+  'ad_storage': 'granted',
+  'ad_user_data': 'granted',
+  'ad_personalization': 'granted',
+  'analytics_storage': 'granted'
 });
 ```
+- Consent Mode V2 enforcement began July 21, 2025 for EEA/UK. Requires 700+ ad clicks/day over 7 days per country/domain for behavioral modeling to activate. Advanced mode mandatory (Basic = huge data loss). Combined with Enhanced Conversions + server-side tagging, recovers 30-50% of lost conversions.
+- Enables conversion modeling for unconsented users
+- Advanced mode recovers 30-50% of lost conversions
+- Without implementation: 90-95% metric drops (enforcement tightened July 2025)
+- ~31% of users accept tracking cookies globally
 
-### Google Tag Manager alternative
+### Attribution
+- **DDA (Data-Driven Attribution) is now MANDATORY default** (September 2025)
+- Only two models remain: DDA and Last Click
+- All rule-based models deprecated (first-click, linear, time decay, position-based)
+- No minimum data threshold for DDA
+- Windows: Click 1/3/7/30(default)/60/90 days; Engaged-view 3d; View-through 1d
 
-If using GTM instead of inline gtag.js:
-1. Install GTM container on all pages
-2. Create Google Ads conversion tags in GTM
-3. Set triggers for conversion events (form submissions, purchases)
-4. Use the Data Layer to pass dynamic values (order amount, transaction ID)
-5. Test with GTM Preview mode before publishing
+### Customer Match
+- Requires 90 days of account history and $50,000+ lifetime spend for full access
+- Maximum membership duration: 540 days (changed April 7, 2025; previously infinite)
+- Use for RLSA, similar audiences, and Customer Match lists
+- First-party data source: CRM emails, phone numbers, addresses
+
+### Conversion Setup Rules
+- Use Google Ads native tracking as PRIMARY for bidding (real-time data)
+- Import GA4 conversions for observation only
+- Never count both (double-counting)
+- Separate micro (AddToCart, TimeOnSite) from macro (Purchase, Lead) conversions
+- Only macro conversions as "Primary" for bidding optimization
+
+### Duplicate Detection Accuracy
+- Only check **ENABLED** conversion actions for duplicates; exclude HIDDEN and REMOVED actions (they cannot cause double-counting)
+- Exclude Smart Campaign system-managed conversions (e.g., 'Smart campaign map clicks to call') from DDA and counting-type checks; their attribution model and counting type are locked by Google and cannot be changed by advertisers
 
 ---
 
-## Meta (Facebook/Instagram)
+## Meta Ads Conversion Tracking
 
-### Install the Meta Pixel
-
-Add to every page, in `<head>`:
-
-```html
-<script>
-  !function(f,b,e,v,n,t,s)
-  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-  n.queue=[];t=b.createElement(e);t.async=!0;
-  t.src=v;s=b.getElementsByTagName(e)[0];
-  s.parentNode.insertBefore(t,s)}(window, document,'script',
-  'https://connect.facebook.net/en_US/fbevents.js');
-  fbq('init', 'YOUR_PIXEL_ID');
-  fbq('track', 'PageView');
-</script>
+### Required Stack
+```
+1. Meta Pixel → base code on all pages + standard events
+2. Conversions API (CAPI) → server-side event forwarding
+3. Event Deduplication → event_id matching between Pixel and CAPI
+4. EMQ Optimization → pass email, phone, fbp, fbc, external_id
 ```
 
-Replace `YOUR_PIXEL_ID` from Meta Events Manager.
+### Event Match Quality (EMQ) Scoring
+| Score | Rating | Action |
+|-------|--------|--------|
+| <4.0 | Critical | Severe data loss; urgent fix needed |
+| 4.0-5.9 | Warning | Significant signal gaps |
+| 6.0-7.9 | Acceptable | Some optimization possible |
+| 8.0-10.0 | Excellent | Maximum signal strength |
 
-### Standard events
+**Key parameters by impact:**
+- Email: +4.0 points
+- Phone: +3.0 points
+- External ID: significant
+- fbp (browser ID): important
+- fbc (click ID): important
 
-```javascript
-// View a product or key page
-fbq('track', 'ViewContent', {
-  content_name: 'Pro Plan',
-  content_category: 'Pricing',
-  value: 29.00,
-  currency: 'USD'
-});
+**87% of advertisers have poor EMQ**; fixing it improves performance 20-40%.
 
-// Lead capture (form submit, demo request)
-fbq('track', 'Lead', {
-  content_name: 'Demo Request',
-  value: 50.00,
-  currency: 'USD'
-});
+**Tiered EMQ Targets by Event:**
+- Purchase: 8.5+
+- AddToCart: 6.5+
+- PageView: 5.5+
 
-// Purchase
-fbq('track', 'Purchase', {
-  value: 99.00,
-  currency: 'USD',
-  content_type: 'product',
-  contents: [{ id: 'pro-plan', quantity: 1 }]
-});
+### Event Deduplication
+```
+Same event_id + same event_name = deduplicated (correct)
+Missing event_id = potential double-counting (broken)
 
-// Add to cart (e-commerce)
-fbq('track', 'AddToCart', {
-  content_ids: ['SKU-123'],
-  content_type: 'product',
-  value: 49.00,
-  currency: 'USD'
-});
+Check: Events Manager > Overview > Deduplication Rate
+Target: 90%+ deduplication rate
 ```
 
-### Conversions API (CAPI)
+### CAPI Performance Impact
+- Without CAPI: 30-40% data loss post-iOS 14.5 (pixel-only tracking is critically insufficient)
+- With CAPI: 15-20% performance increase over pixel-only
+- Bypasses ad blockers and iOS ATT limitations
+- 87% of advertisers have poor Event Match Quality; fixing CAPI improves performance 20-40%
+- Offline Conversions API permanently discontinued May 2025. All offline tracking now uses CAPI with action_source='physical_store'.
 
-Server-side tracking that works alongside the pixel. Required for accurate tracking after iOS 14+ and cookie restrictions.
+### Standard Events (Use These, Not Custom)
+```
+Purchase, AddToCart, InitiateCheckout, AddPaymentInfo,
+Lead, CompleteRegistration, Subscribe, ViewContent,
+Search, AddToWishlist, Contact, CustomizeProduct,
+FindLocation, Schedule, StartTrial, SubmitApplication
+```
 
-Set up via:
-- **Direct integration** — send events from your server to Meta's API
-- **Partner integrations** — Shopify, WooCommerce, Segment, etc. have built-in CAPI support
-- **Conversions API Gateway** — Meta's managed solution via AWS
-
-Key: send the same events from both pixel (browser) AND CAPI (server), with a shared `event_id` for deduplication.
-
-### Aggregated Event Measurement
-
-Required for iOS 14+ tracking. In Events Manager > Aggregated Event Measurement:
-1. Verify your domain
-2. Configure and prioritize your top 8 events in order of business importance
-3. Purchase should typically be #1, Lead #2
+### Attribution
+- 7-day click / 1-day view (default and recommended)
+- Top 8 events configured in AEM (Aggregated Event Measurement)
+- Domain verification required in Business Manager
+- Financial Products & Services = new Special Ad Category (Jan 2025)
 
 ---
 
-## LinkedIn
+## TikTok Ads Conversion Tracking
 
-### Install the Insight Tag
-
-Add to every page, before `</body>`:
-
-```html
-<script type="text/javascript">
-  _linkedin_partner_id = "YOUR_PARTNER_ID";
-  window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
-  window._linkedin_data_partner_ids.push(_linkedin_partner_id);
-  (function(l) {
-    if (!l){window.lintrk = function(a,b){window.lintrk.q.push([a,b])};
-    window.lintrk.q=[]}
-    var s = document.getElementsByTagName("script")[0];
-    var b = document.createElement("script");
-    b.type = "text/javascript";b.async = true;
-    b.src = "https://snap.licdn.com/li.lms-analytics/insight.min.js";
-    s.parentNode.insertBefore(b, s);})(window.lintrk);
-</script>
+### Required Stack
+```
+1. TikTok Pixel → base code + standard events on all pages
+2. Events API → server-side event forwarding
+3. ttclid Passback → capture from URL params, send with events
+4. Advanced Matching → hashed email/phone
 ```
 
-### Conversion tracking
+### Key Difference: ttclid
+- TikTok Click ID (ttclid) comes in landing page URL parameters
+- MUST be captured and stored on first page load
+- MUST be sent back with all conversion events
+- Without ttclid: attribution breaks for many conversions
 
-LinkedIn supports two methods:
-
-**URL-based**: Fires when someone visits a specific URL (e.g., `/thank-you`).
-Set up in Campaign Manager > Analyze > Conversion Tracking > Create Conversion.
-
-**Event-based**: Fire manually on specific actions:
-
-```javascript
-window.lintrk('track', { conversion_id: YOUR_CONVERSION_ID });
-```
-
-### LinkedIn CAPI
-
-For server-side tracking, LinkedIn offers a Conversions API. Set up via partner integrations (Segment, Tealium) or direct API calls. Deduplicates with the Insight Tag automatically when configured correctly.
+### Learning Phase
+- ~50 conversions in 7 days to exit learning
+- Budget ≥50× target CPA per ad group (provides sufficient learning room)
 
 ---
 
-## TikTok
+## LinkedIn Ads Conversion Tracking
 
-### Install the TikTok Pixel
-
-Add to every page, in `<head>`:
-
-```html
-<script>
-  !function (w, d, t) {
-    w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
-    ttq.methods=["page","track","identify","instances","debug","on","off",
-    "once","ready","alias","group","enableCookie","disableCookie","holdConsent",
-    "revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e)
-    {t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
-    for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
-    ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;
-    n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
-    ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",
-    o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,
-    ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},
-    ttq._o[e]=n||{};var s=document.createElement("script");
-    s.type="text/javascript",s.async=!0,s.src=r+"?sdkid="+e+"&lib="+t;
-    var a=document.getElementsByTagName("script")[0];
-    a.parentNode.insertBefore(s,a)};
-    ttq.load('YOUR_PIXEL_ID');
-    ttq.page();
-  }(window, document, 'ttq');
-</script>
+### Required Stack
+```
+1. LinkedIn Insight Tag → all pages
+2. Conversions API (CAPI) → server-side events (launched 2025)
+3. Offline Conversion Import → CRM data (opportunity, deal closed)
 ```
 
-### Standard events
-
-```javascript
-// View content
-ttq.track('ViewContent', {
-  content_id: 'pro-plan',
-  content_type: 'product',
-  content_name: 'Pro Plan',
-  value: 29.00,
-  currency: 'USD'
-});
-
-// Complete registration / sign up
-ttq.track('CompleteRegistration', {
-  content_name: 'Free Trial'
-});
-
-// Purchase
-ttq.track('Purchase', {
-  content_id: 'pro-plan',
-  content_type: 'product',
-  value: 99.00,
-  currency: 'USD',
-  quantity: 1
-});
-
-// Add to cart
-ttq.track('AddToCart', {
-  content_id: 'SKU-123',
-  content_type: 'product',
-  value: 49.00,
-  currency: 'USD'
-});
+### Best Practice: Track Full Funnel
 ```
-
-### Events API (server-side)
-
-TikTok's Events API works like Meta's CAPI — send the same events from your server for better attribution. Use `event_id` for deduplication with browser pixel events.
-
-### Advanced Matching
-
-Pass hashed user data for better attribution:
-
-```javascript
-ttq.identify({
-  email: 'user@example.com',       // auto-hashed
-  phone_number: '+11234567890'
-});
+Stage 1: Lead (form submit, content download)
+Stage 2: MQL (marketing qualified)
+Stage 3: SQL (sales qualified)
+Stage 4: Opportunity Created
+Stage 5: Deal Closed-Won
 ```
+- Import offline conversions within 90 days of click
+- Use for lead quality optimization (bid for SQLs not just leads)
+- Lead Gen Forms: 13% CVR (3.25× landing pages) but lower SQL rates
+
+### Attribution
+- 30-day click / 7-day view window
+- Last touch model default
 
 ---
 
-## Validation Checklist
+## Microsoft Ads Conversion Tracking
 
-After installing any pixel, verify before going live:
+### Required Stack
+```
+1. UET (Universal Event Tracking) tag → all pages
+2. Enhanced Conversions → improved matching
+3. Offline Conversion Import → CRM integration
+4. Auto-tagging (MSCLKID) → ensure CMS doesn't strip
+```
 
-### Browser-side checks
+### Consent Mode
+- Consent Mode deadline May 5, 2025 for EEA/UK/Switzerland
 
-- [ ] Pixel fires on every page (check via browser extension)
-- [ ] Conversion events fire at the right moment (after confirmed action, not on button click)
-- [ ] Event parameters contain correct values (currency, amount, content IDs)
-- [ ] No duplicate events firing on the same action
-- [ ] Events fire on both desktop and mobile
-
-### Platform-side checks
-
-- [ ] Events appear in the platform's event manager/diagnostics
-- [ ] Test conversions show correct values
-- [ ] Event match quality is acceptable (Meta: score > 6)
-- [ ] Server-side events are deduplicating with browser events (not double-counting)
-
-### Debugging tools
-
-| Platform | Tool |
-|----------|------|
-| Google | Google Tag Assistant, Chrome DevTools Network tab |
-| Meta | Meta Pixel Helper (Chrome extension), Events Manager Test Events |
-| LinkedIn | Insight Tag Validator in Campaign Manager |
-| TikTok | TikTok Pixel Helper (Chrome extension), Events Manager |
-| All | GTM Preview Mode (if using Google Tag Manager) |
+### Import Validation
+- If importing from Google: verify conversion goals transferred
+- Google-imported goals often break during import
+- Always validate conversion tracking after import
 
 ---
 
-## Common Mistakes
+## Apple Ads Conversion Tracking
 
-- **Firing purchase events on button click instead of confirmed payment** — always fire on the success/thank-you page or after server confirmation
-- **Missing deduplication between pixel and server events** — without a shared `event_id`, you'll double-count conversions
-- **Not testing on mobile** — many pixels break on mobile browsers or in-app webviews
-- **Hardcoded test values** — remove test transaction amounts before going live
-- **Forgetting to exclude internal traffic** — your team's visits inflate conversion data
-- **Installing pixels without consent management** — GDPR/CCPA require user consent before firing tracking pixels in applicable regions
-- **Pixel installed but no conversion actions created** — the pixel collects data, but the ad platform won't optimize without defined conversion actions
+### AdAttributionKit & Dual Attribution
+- April 10, 2025: Apple Ads registered with AdAttributionKit (SKAN v1-3), creating dual attribution. Installs report through BOTH SKAN/AAK postbacks AND AdServices API. WWDC 2025: configurable attribution windows, overlapping re-engagement windows, country codes in postbacks.
 
 ---
 
-## When to Use Server-Side Tracking
+## Cross-Platform Tracking Health Audit
 
-Browser-only tracking is increasingly unreliable due to:
-- iOS 14+ App Tracking Transparency
-- Third-party cookie deprecation
-- Ad blockers (30%+ of tech audiences)
+### Critical Checks (Run for All Platforms)
 
-**Use server-side (CAPI/Events API) when:**
-- Running Meta or TikTok ads (strongly recommended)
-- Your audience is tech-savvy (higher ad blocker usage)
-- You need accurate purchase/revenue attribution
-- You're spending >$5K/month on any platform
+| Check | Severity | Pass Criteria |
+|-------|----------|---------------|
+| Primary conversion action exists | Critical | ≥1 active conversion per platform |
+| Server-side tracking active | Critical | CAPI/Server GTM/Events API configured |
+| Event deduplication | Critical | event_id matching (Meta), no double-counting |
+| Consent Mode v2 (EU) | Critical | Implemented if serving EU/EEA |
+| Enhanced Conversions / EMQ | High | Google: enabled; Meta: EMQ ≥6.0 |
+| Micro vs macro separation | High | Only macro conversions set as Primary |
+| Attribution model appropriate | Medium | DDA (Google), 7d/1d (Meta) |
+| Conversion window matches cycle | Medium | 7d (ecom), 30-90d (B2B), 30d (lead gen) |
+| Offline conversion import | Medium | Active for lead gen / B2B accounts |
+| First-party data utilization | High | Customer Match / Custom Audiences from CRM |
 
-**Server-side is optional when:**
-- Running Google Ads only (Enhanced Conversions covers most gaps)
-- Low ad spend / testing phase
-- B2B with LinkedIn only (Insight Tag is still reliable)
+### Server-Side Tracking Priority
+```
+IF business_type IN [ecommerce, lead_gen, saas]:
+  server_side_tracking = CRITICAL
+
+IF platform == "Meta":
+  CAPI = CRITICAL (30-40% data loss without post-iOS 14.5)
+
+IF region == "EU/EEA":
+  consent_mode_v2 = CRITICAL (90-95% metric drops without)
+
+server_side_recovery = 10-30% accuracy improvement
+```
+
+### General Note: Incrementality Measurement
+- Meridian (2025): Google's open-source Marketing Mix Model for incrementality measurement. Useful for advanced accounts evaluating cross-channel contribution.
