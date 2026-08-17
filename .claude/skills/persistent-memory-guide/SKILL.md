@@ -1,5 +1,5 @@
 ---
-name: claude-mem
+name: persistent-memory-guide
 description: Guide pour installer, configurer et utiliser claude-mem (thedotmack/claude-mem) — un plugin de mémoire persistante pour Claude Code qui capture ce qui se passe pendant une session, le compresse avec un modèle IA, et réinjecte le contexte pertinent dans les sessions futures, pour que Claude se souvienne du projet d'une conversation à l'autre au lieu de repartir de zéro à chaque fois. Utilise ce skill dès que l'utilisateur mentionne claude-mem, veut que Claude "se souvienne" ou garde le contexte entre plusieurs sessions/conversations, demande une mémoire persistante, un historique de session, ou se plaint de devoir tout réexpliquer à chaque nouvelle conversation.
 ---
 
