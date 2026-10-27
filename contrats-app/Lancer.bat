@@ -3,6 +3,18 @@ chcp 65001 >nul
 title Gestion contractuelle
 cd /d "%~dp0"
 
+rem Lance depuis un ZIP non decompresse : seuls les .bat sont extraits dans un dossier temporaire.
+if not exist package.json (
+  echo.
+  echo  Fichiers de l'application introuvables.
+  echo  Vous avez probablement lance ce fichier depuis le ZIP sans le decompresser.
+  echo  Clic droit sur le ZIP, "Extraire tout...", puis lancez Lancer.bat
+  echo  depuis le dossier contrats-app extrait.
+  echo.
+  pause
+  exit /b 1
+)
+
 where node >nul 2>nul
 if errorlevel 1 (
   echo.
