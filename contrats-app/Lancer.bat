@@ -26,15 +26,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem Verifie les composants a chaque lancement : indispensable apres une mise a jour.
-echo Verification des composants (la premiere fois : 1 a 2 minutes)...
-call npm install --no-audit --no-fund --prefer-offline --loglevel=error
-if errorlevel 1 ( pause & exit /b 1 )
-
-echo Preparation de l'interface...
-call npm run build --silent
+rem Installe les composants et prepare l'interface uniquement si necessaire (1er lancement, mise a jour).
+node scripts\prepare.mjs
 if errorlevel 1 ( pause & exit /b 1 )
 
 set OPEN_BROWSER=1
-node --disable-warning=ExperimentalWarning server/index.js
+node --disable-warning=ExperimentalWarning server\index.js
 pause

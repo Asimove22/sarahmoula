@@ -270,6 +270,75 @@ ${attachmentsText ? `\nPièces jointes :\n${attachmentsText.slice(0, LIMITS[prov
   };
 }
 
+const WATCH_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['updates', 'new_items'],
+  properties: {
+    updates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['review_item_id', 'note', 'risk_level', 'status', 'mitigation', 'rationale'],
+        properties: {
+          review_item_id: { type: 'integer' },
+          note: { type: 'string' },
+          risk_level: { type: 'string', enum: ['', 'faible', 'moyen', 'élevé', 'critique'] },
+          status: { type: 'string', enum: ['', 'à analyser', 'analysé', 'à négocier', 'accepté'] },
+          mitigation: { type: 'string' },
+          rationale: { type: 'string' },
+        },
+      },
+    },
+    new_items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['theme', 'clause_ref', 'content', 'risk_level', 'mitigation', 'rationale'],
+        properties: {
+          theme: { type: 'string' },
+          clause_ref: { type: 'string' },
+          content: { type: 'string' },
+          risk_level: { type: 'string', enum: ['faible', 'moyen', 'élevé', 'critique'] },
+          mitigation: { type: 'string' },
+          rationale: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+/** Veille de revue : quels points de la revue un nouvel événement modifie-t-il ? */
+export async function proposeReviewUpdates(db, contract, items, event) {
+  const provider = resolveProvider(db, contract);
+  const list = items
+    .map((i) => `#${i.id} | ${i.theme} | ${i.clause_ref ?? ''} | risque : ${i.risk_level ?? '—'} | statut : ${i.status} | ${String(i.content ?? '').slice(0, 300)}`)
+    .join('\n');
+  const detail = String(event.detail ?? '').slice(0, provider.name === 'claude' ? 60_000 : 8_000);
+  const out = await completeJson(provider, {
+    system: SYSTEM,
+    schema: WATCH_SCHEMA,
+    prompt: `${contractHeader(contract)}
+
+Voici la revue de contrat actuelle (un point par ligne, identifiant après #) :
+${list}
+
+Nouvel événement : ${event.label}
+${detail}
+
+Indique uniquement les points de la revue que cet événement modifie réellement (nouveau risque, risque réduit, clause à renégocier, mesure de maîtrise à ajouter) :
+- updates : review_item_id (identifiant #), note (ce qui change, 1 à 2 phrases), risk_level et status (chaîne vide si inchangé), mitigation (vide si inchangée), rationale.
+- new_items : seulement si l'événement révèle un sujet qu'aucun point ne couvre.
+Si l'événement ne change rien, renvoie des listes vides. Ne propose pas de modification par précaution.`,
+  });
+  return {
+    updates: (out.updates ?? []).map((u) => ({ ...u, risk_level: u.risk_level || null, status: u.status || null, mitigation: u.mitigation || null })),
+    new_items: out.new_items ?? [],
+  };
+}
+
 /** Test de connexion depuis la page Paramètres. */
 export async function testProvider(db, which) {
   const s = { ...AI_DEFAULTS, ...getSettings(db) };

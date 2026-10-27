@@ -3,9 +3,10 @@
 Application **personnelle et locale** pour gérer le cycle de vie de tes contrats (NEC3/NEC4 et contrats de droit français) :
 
 - **Contrats** : fiche complète (parties, montant, dates, préavis, reconduction tacite, réception, conditions financières, délais NEC et de visa).
-- **GED** : dépôt par glisser-déposer du contrat, de l'acte d'engagement, CCAP, CCTP, CCAG Travaux, Contract Data, annexes, avenants, convention de groupement, BPU/DQE/DPGF, WBS, RACI, matrice de communication, revue de contrat… avec **versions**, empreinte SHA-256 et corbeille. **Recherche plein texte** dans le contenu des PDF, Word, Excel et emails (insensible aux accents).
-- **Revue de contrat** : check-list type par cadre (commune, NEC, CCAG Travaux, NF P03-001) et **analyse IA des pièces** (clauses à risque, dates clés, obligations à délai) à valider point par point.
-- **Organisation** : intervenants, **groupement** (mandataire, quotes-parts, contrôle des 100 %), **matrice RACI** éditable (contrôle « un seul A »), **matrice de communication** qui propose le destinataire des courriers.
+- **GED** : dépôt par glisser-déposer du contrat, de l'acte d'engagement, CCAP, CCTP, CCAG Travaux, Contract Data, annexes, avenants, convention de groupement, BPU/DQE/DPGF, WBS, RACI, matrice de communication, revue de contrat… avec **versions**, empreinte SHA-256 et corbeille. **Recherche plein texte** dans le contenu des PDF, Word, Excel et emails (insensible aux accents). **OCR** des PDF scannés et des photos (français et anglais, hors ligne).
+- **Revue de contrat** : **import de ta revue Excel existante** (colonnes reconnues automatiquement, aperçu avant import), check-list type par cadre (commune, NEC, CCAG Travaux, NF P03-001), **analyse IA des pièces**, export Excel mis en forme.
+- **Veille de revue** : à chaque événement (courrier, Early Warning, CE, avenant, planning, visa refusé, nouvelle pièce contractuelle), l'application propose des **mises à jour de la revue** (niveau de risque, statut, mesure de maîtrise, nouveau point), par règles métier et par IA. Tu acceptes ou rejettes ; chaque point garde son **historique**.
+- **Organisation** : intervenants, **groupement** (mandataire, quotes-parts, contrôle des 100 %), **matrice RACI** éditable (contrôle « un seul A ») et **matrice de communication**, toutes deux **importables et exportables en Excel**.
 - **Planning** : jalons ; **import MS Project (XML), Primavera P6 (XER), Excel et CSV** ; **chemin critique** et marges (lues dans le fichier ou calculées) ; Gantt ; comparaison de deux versions de planning ; WBS créée depuis le planning ; **programmes NEC** (réponse du PM cl. 31.3, prochain programme révisé cl. 32.2).
 - **Circuit de visa** : documents transmis, délai de visa, avis VSO / VAO / refusé, indices successifs.
 - **Finances** : avenants, situations de travaux, montant actualisé (initial + avenants + CE), facturé, payé, retenue de garantie, retards de paiement.
@@ -38,15 +39,25 @@ Tout reste sur ton PC : l'application n'écoute que `localhost`. **Seule excepti
 
 > Évite de placer le dossier dans OneDrive ou Dropbox : la synchronisation peut corrompre la base pendant son utilisation. Pour la sauvegarde, utilise plutôt l'étape 7.
 
-### Étape 3 : lancer l'application
+### Étape 3 : premier lancement
 
 Double-clique sur **`Lancer.bat`**.
 
-- Le premier lancement télécharge les composants (1 à 2 minutes, connexion Internet nécessaire).
-- Le navigateur s'ouvre ensuite sur <http://localhost:4580>.
-- **Laisse la fenêtre noire ouverte** pendant que tu utilises l'application. La fermer arrête l'application.
+- Le premier lancement télécharge les composants (1 à 3 minutes, connexion Internet nécessaire).
+- L'application s'ouvre ensuite dans sa propre fenêtre (Edge en mode application) sur <http://localhost:4580>.
 
-Astuce : clic droit sur `Lancer.bat` → *Envoyer vers* → *Bureau (créer un raccourci)*.
+### Étape 3 bis : créer l'icône sur le Bureau
+
+Double-clique sur **`Installer-raccourci.bat`** (une seule fois). Il crée l'icône **Gestion contractuelle** sur le Bureau et dans le menu Démarrer, et propose de démarrer l'application automatiquement à l'ouverture de session.
+
+Ensuite, **utilise uniquement l'icône** :
+- elle démarre l'application **sans fenêtre noire** et l'ouvre dans sa propre fenêtre ;
+- si l'application tourne déjà, elle ouvre simplement la fenêtre ;
+- après une mise à jour, elle relance automatiquement l'installation des composants (fenêtre visible le temps de l'installation).
+
+Astuce : clic droit sur l'icône du Bureau → *Épingler à la barre des tâches*. Pour arrêter l'application : **Paramètres → Arrêter l'application**.
+
+Si l'icône ne fait rien, lance `Lancer.bat` : il affiche les messages d'erreur, et le journal se trouve dans `data\journal-erreurs.log`.
 
 ### Étape 4 : premier contrat
 
@@ -75,12 +86,13 @@ L'IA propose, tu décides : rien de ce qu'elle produit n'est enregistré sans ta
 ### Étape 6 : utiliser les fonctions avancées
 
 1. **Paramètres** : renseigne la société, l'adresse, la ville et le signataire (en-tête des courriers).
-2. **Revue** : « Charger la check-list type », puis « Analyser les pièces avec l'IA » une fois le CCAP / Contract Data / CCTP archivés.
-3. **Organisation** : saisis les intervenants, puis le groupement, la matrice RACI (clic sur une case pour changer la lettre) et la matrice de communication (le « type » sert à choisir le destinataire des courriers).
-4. **Planning → Plannings & chemin critique** : importe ton planning. MS Project : *Fichier → Enregistrer sous → XML*. Primavera : export *.xer*. Excel/CSV : colonnes `ID`, `Nom`, `Début`, `Fin`, `Prédécesseurs` (ex. `3;5FD+2j`), et en option `Durée`, `WBS`, `%`, `Marge totale`. Importe chaque nouvelle version : l'application compare les dates de fin et signale les glissements.
-5. **Visas** : enregistre chaque document transmis ; en cas de refus ou de VAO, « Nouvel indice ».
-6. **Finances** : avenants et situations ; une situation non payée à l'échéance passe en rouge et propose une relance.
-7. **Courriers** : bouton « Courrier » dans les fenêtres EW, CE, échanges, visas et situations, ou dans la synthèse du contrat. Relis, complète les [crochets], génère le Word. Le courrier est créé avec le statut « à envoyer » : passe-le à « envoyé » une fois expédié.
+2. **Revue** : « Importer Excel » pour reprendre ta revue existante (ou télécharge le « Modèle Excel »), sinon « Charger la check-list type », puis « Analyser les pièces avec l'IA ». Réimporter le même fichier met à jour les points existants (même thème et même clause) au lieu de les dupliquer.
+3. **Veille de revue** : les propositions apparaissent en haut de l'onglet Revue (et dans les points d'attention). Accepte (✓) ou rejette (✗). « Réanalyser avec les événements récents » soumet à l'IA les 60 derniers jours d'événements.
+4. **Organisation** : saisis les intervenants, puis le groupement, la matrice RACI (clic sur une case pour changer la lettre) et la matrice de communication (le « type » sert à choisir le destinataire des courriers). RACI et matrice de communication s'importent aussi depuis Excel : pour le RACI, une colonne « Activité » puis une colonne par intervenant avec R, A, C ou I.
+5. **Planning → Plannings & chemin critique** : importe ton planning. MS Project : *Fichier → Enregistrer sous → XML*. Primavera : export *.xer*. Excel/CSV : colonnes `ID`, `Nom`, `Début`, `Fin`, `Prédécesseurs` (ex. `3;5FD+2j`), et en option `Durée`, `WBS`, `%`, `Marge totale`. Importe chaque nouvelle version : l'application compare les dates de fin et signale les glissements.
+6. **Visas** : enregistre chaque document transmis ; en cas de refus ou de VAO, « Nouvel indice ».
+7. **Finances** : avenants et situations ; une situation non payée à l'échéance passe en rouge et propose une relance.
+8. **Courriers** : bouton « Courrier » dans les fenêtres EW, CE, échanges, visas et situations, ou dans la synthèse du contrat. Relis, complète les [crochets], génère le Word. Le courrier est créé avec le statut « à envoyer » : passe-le à « envoyé » une fois expédié.
 
 ### Étape 7 : sauvegarder
 
@@ -101,7 +113,10 @@ Bouton **« Exporter vers mon agenda »** (tableau de bord) ou **« Agenda »** 
 | Base de données | `contrats-app\data\contrats.db` (SQLite) |
 | Documents | `contrats-app\data\files\<n° du contrat>\` |
 | Fichiers supprimés | `contrats-app\data\corbeille\` |
-| Sauvegardes | `contrats-app\sauvegardes\` |
+| Sauvegardes complètes (Sauvegarder.bat) | `contrats-app\sauvegardes\` |
+| Sauvegardes automatiques de la base (1 par jour, 14 conservées) | `contrats-app\data\sauvegardes-auto\` |
+| Modèles OCR (copiés au premier OCR) | `contrats-app\data\ocr-langues\` |
+| Journaux (lancement par l'icône) | `contrats-app\data\journal-application.log`, `journal-erreurs.log` |
 
 Pour placer les données ailleurs (par exemple sur un disque D:), crée un fichier `Lancer-D.bat` avec la ligne `set DATA_DIR=D:\MesContrats` avant `node …`, ou définis la variable d'environnement `DATA_DIR`.
 
@@ -109,7 +124,7 @@ Pour placer les données ailleurs (par exemple sur un disque D:), crée un fichi
 
 1. Lance `Sauvegarder.bat`.
 2. Remplace les fichiers de l'application **sans toucher au dossier `data`** (avec Git : `git pull`).
-3. Relance `Lancer.bat` : il installe les nouveaux composants, puis la base est **mise à niveau automatiquement** au démarrage (tes données sont conservées). Les documents déjà archivés sont indexés en tâche de fond pour la recherche plein texte.
+3. Relance l'application (icône ou `Lancer.bat`) : elle installe les nouveaux composants, puis la base est **mise à niveau automatiquement** au démarrage (tes données sont conservées). Les documents déjà archivés sont indexés en tâche de fond, et les scans passent à l'OCR.
 
 ## Règles de calcul des échéances
 
@@ -135,7 +150,9 @@ Les durées NEC sont modifiables contrat par contrat. Les contrats « brouillon 
 
 ## Limites actuelles
 
-- Les **PDF scannés** (images) ne contiennent pas de texte : ils sont archivés mais ni la recherche ni l'IA ne peuvent les lire (pas d'OCR pour l'instant). Ils sont signalés dans les points d'attention.
+- L'**OCR** lit la plus grande image de chaque page (jusqu'à 300 pages) : idéal pour des scans à 300 dpi. Un scan flou, manuscrit ou très incliné donne une confiance faible, signalée dans la GED et dans les points d'attention. Compter quelques secondes par page.
+- L'ancien format **.xls** n'est pas lu : dans Excel, « Enregistrer sous » → « Classeur Excel (.xlsx) ».
+- Les scripts de l'icône (`Installer-raccourci.bat`, `Demarrer.ps1`) n'ont pas pu être testés sur un vrai Windows pendant le développement : en cas de souci, `Lancer.bat` reste le moyen de lancement de référence.
 - Le format **.mpp** natif de MS Project n'est pas lisible : exporte en XML.
 - Pour Excel/CSV, la marge est calculée **en jours calendaires**, sans calendrier de travail.
 - L'IA locale (modèle 7B) est nettement moins précise que Claude sur les contrats longs ; dans les deux cas, ses propositions sont à vérifier dans les pièces.
@@ -159,3 +176,8 @@ Architecture : serveur Express (`server/`), base SQLite intégrée à Node (`nod
 | `server/rules.js` | Échéances V2, synthèse financière, points d'attention, check-lists de revue |
 | `server/letters.js` | Modèles de courriers et génération Word |
 | `server/ai.js` | Ollama (local) ou API Claude (SDK officiel `@anthropic-ai/sdk`), sorties JSON structurées |
+| `server/ocr.js` | OCR Tesseract hors ligne (file d'attente en tâche de fond) |
+| `server/imports.js` | Import / export Excel de la revue, du RACI et de la matrice de communication |
+| `server/review-watch.js` | Veille de revue : règles métier et IA à chaque événement |
+| `server/backup.js` | Sauvegarde quotidienne de la base |
+| `scripts/prepare.mjs` | Installation / construction uniquement si nécessaire au lancement |

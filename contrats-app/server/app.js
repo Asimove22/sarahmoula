@@ -12,6 +12,10 @@ import { parseSchedule } from './schedule.js';
 import { buildLetter, listTemplates, renderDocx, TEMPLATES } from './letters.js';
 import { derive, extraDeadlines, financeSummary, computeInsights, reviewTemplateFor } from './rules.js';
 import { AI_DEFAULTS, askContract, draftLetter, reviewContract, testProvider, triageCorrespondence } from './ai.js';
+import { createOcr, needsOcr } from './ocr.js';
+import { createReviewWatch, acceptUpdate } from './review-watch.js';
+import { KINDS, buildExport, buildTemplate, prepareImport } from './imports.js';
+import { listBackups } from './backup.js';
 
 const LABELS = {
   contracts: 'contrat',
@@ -31,6 +35,7 @@ const LABELS = {
   communication_rules: 'règle de communication',
   review_items: 'point de revue',
   schedule_imports: 'planning importé',
+  review_updates: 'mise à jour de revue',
 };
 
 // Ordre de lecture des pièces pour l'IA : les pièces contractuelles d'abord.
@@ -47,6 +52,8 @@ class HttpError extends Error {
   }
 }
 
+const APP_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version;
+
 const describe = (row) => row.title ?? row.subject ?? row.name ?? row.company ?? row.activity ?? row.theme ?? `#${row.id}`;
 
 /** Prochain numéro de registre : EW-001, CE-002, ENT-003… */
@@ -56,9 +63,18 @@ function nextNumber(db, table, column, contractId, prefix) {
   return `${prefix}-${String(max + 1).padStart(3, '0')}`;
 }
 
-export function createApp({ db, dataDir }) {
+export function createApp({ db, dataDir, onShutdown }) {
   const app = express();
   const files = createFileStore(dataDir);
+  const watch = createReviewWatch(db);
+  const ocr = createOcr(db, dataDir, { onDocumentText: (doc) => watch.notify('documents', doc, 'création') });
+  app.locals.ocr = ocr;
+  app.locals.watch = watch;
+  const ocrEnabled = () => getSettings(db).ocr_mode !== 'off';
+  // Les registres de la revue elle-même ne déclenchent pas la veille.
+  const notify = (table, row, action, before) => {
+    if (!['review_items', 'review_updates', 'documents'].includes(table)) watch.notify(table, row, action, before);
+  };
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 500 * 1024 * 1024 },
@@ -84,6 +100,7 @@ export function createApp({ db, dataDir }) {
       .run(...cols.map((c) => toSql(body[c])));
     const row = getRow(table, result.lastInsertRowid);
     logJournal(db, { contract_id: contractOf(row, table), entity: table, entity_id: row.id, action: 'création', summary: describe(row) });
+    notify(table, row, 'création');
     return row;
   }
 
@@ -99,6 +116,7 @@ export function createApp({ db, dataDir }) {
     if (changed.length) {
       const detail = changed.includes('status') ? ` – statut : ${before.status} → ${row.status}` : '';
       logJournal(db, { contract_id: contractOf(row, table), entity: table, entity_id: row.id, action: 'modification', summary: `${describe(row)}${detail}` });
+      notify(table, row, 'modification', before);
     }
     return row;
   }
@@ -184,7 +202,14 @@ export function createApp({ db, dataDir }) {
     const { text, status } = await extractDocumentText(doc.original_name, args.buffer);
     db.prepare('UPDATE documents SET content_text = ?, text_status = ? WHERE id = ?').run(text || null, status, doc.id);
     indexDocument(db, doc, text);
-    return { ...doc, text_status: status };
+    const stored = { ...doc, content_text: text, text_status: status };
+    // Scan ou photo : le texte arrivera plus tard, par l'OCR en tâche de fond.
+    if (needsOcr(stored) && ocrEnabled()) {
+      ocr.enqueue(doc.id);
+      return { ...stored, text_status: 'ocr en attente' };
+    }
+    watch.notify('documents', stored, 'création');
+    return stored;
   }
   const stripText = ({ content_text: _ignored, ...rest }) => rest;
 
@@ -593,7 +618,7 @@ export function createApp({ db, dataDir }) {
   };
   app.get('/api/settings', h(() => publicSettings()));
   app.put('/api/settings', h((req) => {
-    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key'];
+    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key', 'ocr_mode', 'review_watch_ai'];
     const values = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
     // Une clé vide envoyée par le formulaire ne remplace pas la clé enregistrée.
     if (values.claude_api_key === '' || values.claude_api_key === undefined) delete values.claude_api_key;
@@ -604,7 +629,7 @@ export function createApp({ db, dataDir }) {
   app.post('/api/ai/test', h((req) => testProvider(db, req.body.provider === 'claude' ? 'claude' : 'ollama')));
 
   const aiDocuments = (contractId, ids, forReview) => {
-    let docs = db.prepare("SELECT id, title, category, content_text FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status = 'ok'").all(contractId);
+    let docs = db.prepare("SELECT id, title, category, content_text FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status IN ('ok', 'ocr')").all(contractId);
     if (ids?.length) docs = docs.filter((d) => ids.includes(d.id));
     else if (forReview) docs = docs.filter((d) => !NOT_FOR_REVIEW.includes(d.category));
     const rank = (d) => (AI_CATEGORY_ORDER.includes(d.category) ? AI_CATEGORY_ORDER.indexOf(d.category) : 99);
@@ -647,8 +672,185 @@ export function createApp({ db, dataDir }) {
   app.post('/api/ai/triage', h((req) => {
     const message = getRow('correspondence', req.body.correspondence_id);
     const contract = getRow('contracts', message.contract_id);
-    const attachments = db.prepare("SELECT title, content_text FROM documents WHERE correspondence_id = ? AND text_status = 'ok'").all(message.id);
+    const attachments = db.prepare("SELECT title, content_text FROM documents WHERE correspondence_id = ? AND text_status IN ('ok', 'ocr')").all(message.id);
     return triageCorrespondence(db, contract, message, attachments.map((a) => `## ${a.title}\n${a.content_text}`).join('\n\n'));
+  }));
+
+  // ================= V3 =================
+
+  // ---------- OCR à la demande ----------
+  app.post('/api/documents/:id/ocr', h((req) => {
+    const doc = getRow('documents', req.params.id);
+    const ext = doc.original_name.toLowerCase().split('.').pop();
+    if (!['pdf', 'png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff'].includes(ext)) throw new HttpError(400, 'L’OCR ne s’applique qu’aux PDF et aux images.');
+    ocr.enqueue(doc.id);
+    return { queued: true, pending: ocr.pending() };
+  }));
+  app.get('/api/ocr/status', h(() => ({
+    pending: ocr.pending(),
+    documents: db.prepare("SELECT text_status, COUNT(*) AS n FROM documents WHERE is_current = 1 AND text_status LIKE 'ocr%' GROUP BY text_status").all(),
+  })));
+
+  // ---------- Import / export Excel : revue, RACI, matrice de communication ----------
+  const IMPORT_CATEGORY = { review: 'Revue de contrat', raci: 'RACI', communication: 'Matrice de communication' };
+  const n = (v) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const checkKind = (kind) => {
+    if (!KINDS.includes(kind)) throw new HttpError(404, 'Type d’import inconnu');
+  };
+  const parseMapping = (raw) => {
+    if (!raw) return undefined;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new HttpError(400, 'Correspondance de colonnes invalide');
+    }
+  };
+
+  app.post('/api/contracts/:id/import/:kind/preview', upload.single('file'), h(async (req) => {
+    getRow('contracts', req.params.id);
+    checkKind(req.params.kind);
+    if (!req.file) throw new HttpError(400, 'Aucun fichier reçu');
+    const prep = await prepareImport(req.params.kind, req.file.originalname, req.file.buffer, { sheet: req.body.sheet, mapping: parseMapping(req.body.mapping) });
+    return { ...prep, total: prep.items.length, items: prep.items.slice(0, 15) };
+  }));
+
+  app.post('/api/contracts/:id/import/:kind', upload.single('file'), h(async (req) => {
+    const contract = getRow('contracts', req.params.id);
+    const kind = req.params.kind;
+    checkKind(kind);
+    if (!req.file) throw new HttpError(400, 'Aucun fichier reçu');
+    const prep = await prepareImport(kind, req.file.originalname, req.file.buffer, { sheet: req.body.sheet, mapping: parseMapping(req.body.mapping) });
+    if (!prep.items.length) throw new HttpError(400, 'Aucune ligne exploitable dans le fichier : vérifiez la correspondance des colonnes.');
+    const replace = req.body.mode === 'remplacer';
+    const stamp = `[${today()} · import Excel « ${req.file.originalname} »]`;
+    const result = { created: 0, updated: 0, stakeholders_created: 0 };
+    db.exec('BEGIN');
+    try {
+      if (kind === 'review') {
+        if (replace) db.prepare('DELETE FROM review_items WHERE contract_id = ?').run(contract.id);
+        const existing = db.prepare('SELECT * FROM review_items WHERE contract_id = ?').all(contract.id);
+        for (const it of prep.items) {
+          const same = existing.find((e) => n(e.theme) === n(it.theme) && n(e.clause_ref) === n(it.clause_ref));
+          const values = { theme: it.theme, clause_ref: it.clause_ref, content: it.content, risk_level: it.risk_level, mitigation: it.mitigation, owner: it.owner, status: it.status };
+          if (same) {
+            update('review_items', same.id, { ...values, risk_level: it.risk_level ?? same.risk_level, history: [`${stamp} Point mis à jour`, same.history].filter(Boolean).join('\n') });
+            result.updated += 1;
+          } else {
+            insert('review_items', { contract_id: contract.id, ...values, source: 'import', history: `${stamp} Point importé` });
+            result.created += 1;
+          }
+        }
+      } else if (kind === 'communication') {
+        if (replace) db.prepare('DELETE FROM communication_rules WHERE contract_id = ?').run(contract.id);
+        const existing = db.prepare('SELECT * FROM communication_rules WHERE contract_id = ?').all(contract.id);
+        for (const it of prep.items) {
+          const same = existing.find((e) => n(e.subject) === n(it.subject));
+          if (same) {
+            update('communication_rules', same.id, it);
+            result.updated += 1;
+          } else {
+            insert('communication_rules', { contract_id: contract.id, ...it });
+            result.created += 1;
+          }
+        }
+      } else {
+        if (replace) db.prepare('DELETE FROM raci_items WHERE contract_id = ?').run(contract.id);
+        // Colonnes du fichier → intervenants existants (par nom ou organisme), sinon création.
+        const people = db.prepare('SELECT * FROM stakeholders WHERE contract_id = ?').all(contract.id);
+        const idByHeader = {};
+        for (const header of prep.people) {
+          const m = header.match(/^(.*?)\s*\((.*)\)\s*$/);
+          const name = (m ? m[1] : header).trim();
+          const found = people.find((p) => n(p.name) === n(name) || n(p.organisation) === n(name) || n(`${p.name} (${p.organisation})`) === n(header));
+          if (found) idByHeader[header] = found.id;
+          else {
+            const created = insert('stakeholders', { contract_id: contract.id, name, organisation: m ? m[2] : null, notes: 'Créé par import de la matrice RACI' });
+            people.push(created);
+            idByHeader[header] = created.id;
+            result.stakeholders_created += 1;
+          }
+        }
+        const existing = db.prepare('SELECT * FROM raci_items WHERE contract_id = ?').all(contract.id);
+        for (const it of prep.items) {
+          const assignments = Object.fromEntries(Object.entries(it.cells).map(([h, v]) => [idByHeader[h], v]));
+          const same = existing.find((e) => n(e.activity) === n(it.activity));
+          if (same) {
+            let prev = {};
+            try { prev = JSON.parse(same.assignments || '{}'); } catch { prev = {}; }
+            update('raci_items', same.id, { wbs_code: it.wbs_code ?? same.wbs_code, assignments: JSON.stringify({ ...prev, ...assignments }) });
+            result.updated += 1;
+          } else {
+            insert('raci_items', { contract_id: contract.id, activity: it.activity, wbs_code: it.wbs_code, assignments: JSON.stringify(assignments) });
+            result.created += 1;
+          }
+        }
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+    // Le fichier source est conservé dans la GED, comme nouvelle version s'il a déjà été importé.
+    const previous = db.prepare('SELECT id FROM documents WHERE contract_id = ? AND category = ? AND original_name = ? AND is_current = 1').get(contract.id, IMPORT_CATEGORY[kind], safeName(req.file.originalname));
+    await storeDocument({ contractId: contract.id, buffer: req.file.buffer, filename: req.file.originalname, mime: req.file.mimetype, meta: { category: IMPORT_CATEGORY[kind], doc_date: today(), parent_id: previous?.id } });
+    return { ...result, warnings: prep.warnings };
+  }));
+
+  app.get('/api/contracts/:id/export/:kind.xlsx', h(async (req, res) => {
+    const contract = getRow('contracts', req.params.id);
+    const kind = req.params.kind;
+    checkKind(kind);
+    const table = { review: 'review_items', raci: 'raci_items', communication: 'communication_rules' }[kind];
+    const order = { review: "CASE risk_level WHEN 'critique' THEN 0 WHEN 'élevé' THEN 1 WHEN 'moyen' THEN 2 ELSE 3 END, id", raci: 'wbs_code, id', communication: 'id' }[kind];
+    const items = db.prepare(`SELECT * FROM ${table} WHERE contract_id = ? ORDER BY ${order}`).all(contract.id);
+    const people = kind === 'raci' ? db.prepare('SELECT * FROM stakeholders WHERE contract_id = ? ORDER BY organisation, name').all(contract.id) : [];
+    const buffer = await buildExport(kind, { contract, items, people });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${IMPORT_CATEGORY[kind]} - ${contract.reference || contract.title}.xlsx`)}`);
+    res.send(buffer);
+  }));
+
+  app.get('/api/import-templates/:kind.xlsx', h(async (req, res) => {
+    checkKind(req.params.kind);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`Modèle ${IMPORT_CATEGORY[req.params.kind]}.xlsx`)}`);
+    res.send(await buildTemplate(req.params.kind));
+  }));
+
+  // ---------- Veille de revue : propositions à valider ----------
+  app.get('/api/review_updates', h((req) => {
+    const where = ['u.contract_id = ?'];
+    const args = [Number(req.query.contract_id)];
+    if (req.query.status) { where.push('u.status = ?'); args.push(String(req.query.status)); }
+    return db.prepare(`
+      SELECT u.*, r.theme AS item_theme, r.clause_ref AS item_clause, r.risk_level AS item_risk, r.status AS item_status
+      FROM review_updates u LEFT JOIN review_items r ON r.id = u.review_item_id
+      WHERE ${where.join(' AND ')} ORDER BY u.id DESC LIMIT 200`).all(...args);
+  }));
+  app.post('/api/review_updates/:id/:decision', h((req) => {
+    const u = getRow('review_updates', req.params.id);
+    if (u.status !== 'proposée') throw new HttpError(409, 'Proposition déjà traitée');
+    if (!['accept', 'reject'].includes(req.params.decision)) throw new HttpError(404, 'Décision inconnue');
+    let itemId = u.review_item_id;
+    if (req.params.decision === 'accept') {
+      itemId = acceptUpdate(db, u);
+      logJournal(db, { contract_id: u.contract_id, entity: 'review_items', entity_id: itemId, action: 'veille acceptée', summary: u.trigger_label });
+    }
+    db.prepare("UPDATE review_updates SET status = ?, decided_at = datetime('now','localtime') WHERE id = ?").run(req.params.decision === 'accept' ? 'acceptée' : 'rejetée', u.id);
+    return { ok: true, review_item_id: itemId };
+  }));
+  app.post('/api/contracts/:id/review/reanalyze', h(async (req) => {
+    const contract = getRow('contracts', req.params.id);
+    const created = await watch.reanalyze(contract.id);
+    return { created };
+  }));
+
+  // ---------- Système : état, sauvegardes, arrêt ----------
+  app.get('/api/health', h(() => ({ ok: true, app: 'contrats-app', version: APP_VERSION })));
+  app.get('/api/backups', h(() => listBackups(dataDir)));
+  app.post('/api/system/shutdown', h((req, res) => {
+    res.json({ ok: true });
+    setTimeout(() => onShutdown?.(), 200);
   }));
 
   /** Extrait le texte des documents qui ne l'ont pas encore été (documents de la V1). */
@@ -661,6 +863,7 @@ export function createApp({ db, dataDir }) {
       db.prepare('UPDATE documents SET content_text = ?, text_status = ? WHERE id = ?').run(text || null, status, doc.id);
       indexDocument(db, doc, text);
     }
+    if (ocrEnabled()) ocr.resume();
     return docs.length;
   };
 

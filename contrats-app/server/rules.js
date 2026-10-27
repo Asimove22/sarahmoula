@@ -122,8 +122,12 @@ export function computeInsights(db, { contractId } = {}) {
     const required = [...REQUIRED_DOCS.ALL, ...(REQUIRED_DOCS[c.framework] ?? []), ...(c.group_type ? [['Convention de groupement']] : [])];
     const missing = required.filter((alts) => !alts.some((a) => categories.has(a))).map((alts) => alts[0]);
     if (missing.length) add('attention', `Pièces de référence manquantes : ${missing.join(', ')}`, 'Archivez-les pour fiabiliser la revue de contrat et l’assistant IA.', 'documents');
-    const scanned = db.prepare("SELECT COUNT(*) AS n FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status = 'vide'").get(c.id).n;
-    if (scanned) add('info', `${scanned} document(s) sans texte (scans)`, 'Ils ne sont pas consultables par la recherche ni par l’IA : déposez si possible la version PDF native.', 'documents');
+    const unreadable = db.prepare("SELECT COUNT(*) AS n FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status IN ('vide', 'ocr vide', 'ocr échoué')").get(c.id).n;
+    if (unreadable) add('info', `${unreadable} document(s) illisible(s) même après OCR`, 'Scan de mauvaise qualité ou OCR désactivé : déposez si possible une version PDF native ou un scan plus net (300 dpi).', 'documents');
+    const lowOcr = db.prepare("SELECT COUNT(*) AS n FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status = 'ocr' AND ocr_confidence < 70").get(c.id).n;
+    if (lowOcr) add('info', `${lowOcr} document(s) lus par OCR avec une confiance faible`, 'Vérifiez les passages importants dans le document original avant de vous fier à la recherche ou à l’IA.', 'documents');
+    const reviewUpdates = db.prepare("SELECT COUNT(*) AS n FROM review_updates WHERE contract_id = ? AND status = 'proposée'").get(c.id).n;
+    if (reviewUpdates) add('attention', `${reviewUpdates} mise(s) à jour de la revue à valider`, 'De nouveaux événements touchent des points de votre revue de contrat.', 'revue');
 
     // Revue de contrat
     const review = all('SELECT * FROM review_items WHERE contract_id = ?');

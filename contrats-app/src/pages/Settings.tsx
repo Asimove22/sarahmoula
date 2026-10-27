@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Cloud, HardDrive, PlugZap, Save } from 'lucide-react';
+import { Cloud, HardDrive, PlugZap, Power, Save, ScanText } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { toast, toastError } from '../components/ui';
 
@@ -13,10 +13,22 @@ export function Settings() {
   const [s, setS] = useState<Rec | null>(null);
   const [key, setKey] = useState('');
   const [testing, setTesting] = useState('');
+  const [health, setHealth] = useState<Rec | null>(null);
+  const [backups, setBackups] = useState<Rec[]>([]);
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
     api.get<Rec>('/api/settings').then(setS).catch(toastError);
+    api.get<Rec>('/api/health').then(setHealth).catch(() => {});
+    api.get('/api/backups').then(setBackups).catch(() => {});
   }, []);
+  if (stopped)
+    return (
+      <div className="card max-w-xl p-6 text-sm">
+        <p className="font-semibold">L’application est arrêtée.</p>
+        <p className="mt-1 text-slate-500">Vous pouvez fermer cette fenêtre. Pour la relancer : icône « Gestion contractuelle » du Bureau.</p>
+      </div>
+    );
   if (!s) return <div className="text-sm text-slate-500">Chargement…</div>;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
 
@@ -138,9 +150,57 @@ export function Settings() {
         <p className="text-xs text-slate-400">La clé est stockée dans la base locale (data/contrats.db) et n’est jamais renvoyée à l’interface.</p>
       </section>
 
+      <section className="card space-y-3 p-5">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <ScanText size={18} /> Automatismes
+        </h2>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={s.ocr_mode !== 'off'} onChange={(e) => set('ocr_mode', e.target.checked ? 'on' : 'off')} />
+          <span>
+            <b>OCR des documents scannés</b> (PDF image, photos) — local, hors ligne, français et anglais. Le texte reconnu devient consultable par la recherche et l’IA.
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={s.review_watch_ai !== 'off'} onChange={(e) => set('review_watch_ai', e.target.checked ? 'on' : 'off')} />
+          <span>
+            <b>Veille de revue par l’IA</b> — à chaque nouvel événement (courrier, EW, CE, avenant, planning, pièce contractuelle), l’IA propose des mises à jour de la revue. Les règles métier fonctionnent toujours, même décoché. Avec Claude, chaque événement consomme un peu de crédit API.
+          </span>
+        </label>
+      </section>
+
       <button className="btn-primary" onClick={() => save()}>
         <Save size={16} /> Enregistrer
       </button>
+
+      <section className="card space-y-3 p-5 text-sm">
+        <h2 className="font-semibold">Application</h2>
+        <p className="text-slate-600">Version {health?.version ?? '—'} · données stockées localement.</p>
+        <div>
+          <div className="label">Sauvegardes automatiques de la base (une par jour, 14 conservées)</div>
+          {backups.length ? (
+            <ul className="text-xs text-slate-600">
+              {backups.slice(0, 5).map((b) => (
+                <li key={b.name}>
+                  {`data\\sauvegardes-auto\\${b.name}`} ({Math.round(b.size / 1024)} Ko)
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-400">Aucune pour l’instant.</p>
+          )}
+          <p className="mt-1 text-xs text-slate-400">Les documents ne sont jamais modifiés ni effacés (corbeille). Pour une copie complète sur clé USB : Sauvegarder.bat.</p>
+        </div>
+        <button
+          className="btn-danger"
+          onClick={async () => {
+            if (!confirm('Arrêter l’application ? Les alertes ne seront plus calculées jusqu’au prochain lancement.')) return;
+            await api.post('/api/system/shutdown', {}).catch(() => {});
+            setStopped(true);
+          }}
+        >
+          <Power size={16} /> Arrêter l’application
+        </button>
+      </section>
     </div>
   );
 }

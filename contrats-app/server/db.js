@@ -233,6 +233,17 @@ const MIGRATIONS = [
   CREATE INDEX idx_simport_contract ON schedule_imports(contract_id);
   CREATE INDEX idx_stask_import ON schedule_tasks(import_id);
   `,
+  // V3 : OCR, historique des points de revue, mises à jour de revue proposées après un événement.
+  `
+  ALTER TABLE documents ADD COLUMN ocr_confidence REAL;
+  ALTER TABLE review_items ADD COLUMN history TEXT;
+  CREATE TABLE review_updates (id INTEGER PRIMARY KEY AUTOINCREMENT, ${OWNED},
+    review_item_id INTEGER REFERENCES review_items(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'mise à jour', trigger_entity TEXT, trigger_id INTEGER, trigger_label TEXT,
+    proposed TEXT NOT NULL DEFAULT '{}', rationale TEXT, source TEXT NOT NULL DEFAULT 'règle',
+    status TEXT NOT NULL DEFAULT 'proposée', decided_at TEXT, ${TIMESTAMPS});
+  CREATE INDEX idx_rupd_contract ON review_updates(contract_id, status);
+  `,
 ];
 
 export function openDatabase(dataDir) {

@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
-import { ClipboardList, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Check, ClipboardList, History, RefreshCw, Sparkles, X } from 'lucide-react';
 import { api, type Rec } from '../../api';
 import { RegisterPanel } from '../../components/RegisterPanel';
+import { ImportExportButtons } from '../../components/ImportModal';
 import { Badge, Modal, toast, toastError } from '../../components/ui';
 import { REVIEW_FIELDS } from '../../schemas';
+import { fmtDateTime } from '../../format';
 
 /** Revue de contrat : check-list type par cadre contractuel + analyse IA des pièces. */
 export function ReviewTab({ contract, openId, onChange }: { contract: Rec; openId?: number; onChange: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const refresh = () => {
     setRefreshKey((k) => k + 1);
     onChange();
@@ -24,8 +27,22 @@ export function ReviewTab({ contract, openId, onChange }: { contract: Rec; openI
     }
   };
 
+  const reanalyze = async () => {
+    setReanalyzing(true);
+    try {
+      const { created } = await api.post(`/api/contracts/${contract.id}/review/reanalyze`, {});
+      toast(created ? `${created} mise(s) à jour proposée(s) par l’IA` : 'L’IA ne propose aucune modification de la revue');
+      refresh();
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
   return (
     <>
+      <ReviewUpdates contractId={contract.id} refreshKey={refreshKey} onApplied={refresh} />
       <RegisterPanel
         table="review_items"
         contractId={contract.id}
@@ -45,6 +62,10 @@ export function ReviewTab({ contract, openId, onChange }: { contract: Rec; openI
             <button className="btn-secondary" onClick={() => setAiOpen(true)}>
               <Sparkles size={16} /> Analyser les pièces avec l’IA
             </button>
+            <button className="btn-secondary" onClick={reanalyze} disabled={reanalyzing} title="L’IA confronte la revue aux événements des 60 derniers jours">
+              <RefreshCw size={16} className={reanalyzing ? 'animate-spin' : ''} /> {reanalyzing ? 'Réanalyse…' : 'Réanalyser avec les événements récents'}
+            </button>
+            <ImportExportButtons contractId={contract.id} kind="review" onImported={refresh} />
           </div>
         }
         rowClassName={(r) => (r.risk_level === 'critique' && r.status !== 'accepté' ? 'bg-red-50/60' : '')}
@@ -55,7 +76,19 @@ export function ReviewTab({ contract, openId, onChange }: { contract: Rec; openI
           { key: 'risk_level', label: 'Risque', render: (r) => <Badge value={r.risk_level} /> },
           { key: 'mitigation', label: 'Maîtrise', render: (r) => <span className="line-clamp-2 text-xs">{r.mitigation ?? '—'}</span> },
           { key: 'status', label: 'Statut', render: (r) => <Badge value={r.status} /> },
-          { key: 'source', label: 'Source', className: 'text-xs text-slate-400' },
+          {
+            key: 'history',
+            label: 'Évolution',
+            render: (r) =>
+              r.history ? (
+                <span className="flex items-start gap-1 text-xs text-slate-500" title={r.history}>
+                  <History size={12} className="mt-0.5 shrink-0" />
+                  <span className="line-clamp-2">{r.history.split('\n')[0]}</span>
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">{r.source}</span>
+              ),
+          },
         ]}
       />
       {aiOpen && <AiReviewModal contract={contract} onClose={() => setAiOpen(false)} onApplied={refresh} />}
@@ -72,7 +105,7 @@ function AiReviewModal({ contract, onClose, onApplied }: { contract: Rec; onClos
 
   useEffect(() => {
     api.get(`/api/documents?contract_id=${contract.id}`).then((rows) => {
-      const usable = rows.filter((d) => d.text_status === 'ok');
+      const usable = rows.filter((d) => ['ok', 'ocr'].includes(d.text_status));
       setDocs(usable);
       setSelected(new Set(usable.filter((d) => !['Échange', 'Pièce jointe', 'Facture / Situation', 'Compte rendu / PV'].includes(d.category)).map((d) => d.id)));
     });
@@ -214,5 +247,90 @@ function AiReviewModal({ contract, onClose, onApplied }: { contract: Rec; onClos
         </div>
       )}
     </Modal>
+  );
+}
+
+const CHANGE_LABELS: Record<string, string> = { risk_level: 'Risque', status: 'Statut', mitigation: 'Maîtrise', theme: 'Thème', clause_ref: 'Clause', content: 'Contenu' };
+
+/** Propositions de la veille de revue (règles et IA) à accepter ou rejeter. */
+function ReviewUpdates({ contractId, refreshKey, onApplied }: { contractId: number; refreshKey: number; onApplied: () => void }) {
+  const [rows, setRows] = useState<Rec[]>([]);
+  const load = useCallback(() => {
+    api.get(`/api/review_updates?contract_id=${contractId}&status=${encodeURIComponent('proposée')}`).then(setRows).catch(toastError);
+  }, [contractId]);
+  useEffect(load, [load, refreshKey]);
+  // La veille travaille en tâche de fond : on relit les propositions régulièrement.
+  useEffect(() => {
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const decide = async (u: Rec, decision: 'accept' | 'reject') => {
+    try {
+      await api.post(`/api/review_updates/${u.id}/${decision}`, {});
+      setRows((r) => r.filter((x) => x.id !== u.id));
+      if (decision === 'accept') onApplied();
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const acceptAll = async () => {
+    if (!confirm(`Accepter les ${rows.length} propositions ?`)) return;
+    for (const u of rows) await api.post(`/api/review_updates/${u.id}/accept`, {}).catch(toastError);
+    load();
+    onApplied();
+  };
+
+  if (!rows.length) return null;
+  return (
+    <section className="card mb-4 border-amber-300 bg-amber-50/40 p-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="mr-auto font-semibold">Veille de revue : {rows.length} mise(s) à jour proposée(s)</h3>
+        <button className="btn-secondary" onClick={acceptAll}>
+          <Check size={16} /> Tout accepter
+        </button>
+      </div>
+      <p className="mb-3 text-xs text-slate-500">Chaque nouvel événement (courrier, Early Warning, CE, avenant, planning, visa, pièce contractuelle) est confronté à votre revue. Rien n’est modifié sans votre accord.</p>
+      <ul className="space-y-2">
+        {rows.map((u) => {
+          const p = JSON.parse(u.proposed || '{}');
+          const changes = Object.entries(p).filter(([k]) => k !== 'note' && CHANGE_LABELS[k]);
+          return (
+            <li key={u.id} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-slate-500">
+                    {fmtDateTime(u.created_at)} · {u.trigger_label} <Badge value={u.source === 'IA' ? 'IA' : 'règle'} className={u.source === 'IA' ? '!bg-violet-100 !text-violet-800' : ''} />
+                  </div>
+                  <div className="mt-0.5 font-medium">
+                    {u.kind === 'nouveau point' ? <>Nouveau point : {p.theme}</> : <>{u.item_theme} {u.item_clause && <span className="font-normal text-slate-400">{u.item_clause}</span>}</>}
+                  </div>
+                  {p.note && <div className="text-xs text-slate-600">{p.note}</div>}
+                  {u.kind === 'nouveau point' && p.content && <div className="text-xs text-slate-600">{p.content}</div>}
+                  {changes.length > 0 && u.kind !== 'nouveau point' && (
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                      {changes.map(([k, v]) => (
+                        <span key={k} className="rounded bg-slate-100 px-1.5 py-0.5">
+                          {CHANGE_LABELS[k]} : {k === 'risk_level' ? <>{u.item_risk ?? '—'} → <b>{String(v)}</b></> : k === 'status' ? <>{u.item_status} → <b>{String(v)}</b></> : <b>{String(v)}</b>}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {u.rationale && <div className="mt-1 text-xs italic text-slate-500">{u.rationale}</div>}
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button className="btn-primary !px-2" onClick={() => decide(u, 'accept')} title="Accepter et appliquer">
+                    <Check size={16} />
+                  </button>
+                  <button className="btn-secondary !px-2" onClick={() => decide(u, 'reject')} title="Rejeter">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

@@ -2,12 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, type Rec } from '../../api';
 import { RegisterPanel } from '../../components/RegisterPanel';
+import { ImportExportButtons } from '../../components/ImportModal';
 import { Badge, Empty, SubTabs, toastError } from '../../components/ui';
 import { COMMUNICATION_FIELDS, GROUP_MEMBER_FIELDS, STAKEHOLDER_FIELDS } from '../../schemas';
 import { fmtMoney } from '../../format';
 
 export function OrganisationTab({ contract, openId, onChange }: { contract: Rec; openId?: number; onChange: () => void }) {
   const [sub, setSub] = useState('intervenants');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = () => {
+    setRefreshKey((k) => k + 1);
+    onChange();
+  };
   return (
     <div className="space-y-4">
       <SubTabs
@@ -40,7 +46,7 @@ export function OrganisationTab({ contract, openId, onChange }: { contract: Rec;
         />
       )}
       {sub === 'groupement' && <GroupPanel contract={contract} onChange={onChange} />}
-      {sub === 'raci' && <RaciMatrix contractId={contract.id} />}
+      {sub === 'raci' && <RaciMatrix key={refreshKey} contractId={contract.id} onImported={refresh} />}
       {sub === 'communication' && (
         <RegisterPanel
           table="communication_rules"
@@ -50,6 +56,12 @@ export function OrganisationTab({ contract, openId, onChange }: { contract: Rec;
           emptyText="Qui envoie quoi, à qui, par quel canal et dans quel délai. Le « type » sert à proposer le destinataire des courriers générés."
           fields={COMMUNICATION_FIELDS}
           onChange={onChange}
+          refreshKey={refreshKey}
+          toolbar={
+            <div className="flex flex-wrap gap-2">
+              <ImportExportButtons contractId={contract.id} kind="communication" onImported={refresh} />
+            </div>
+          }
           columns={[
             { key: 'subject', label: 'Information', className: 'font-medium' },
             { key: 'info_type', label: 'Type' },
@@ -122,7 +134,7 @@ const CELL_COLORS: Record<string, string> = {
 };
 
 /** Matrice RACI éditable : un clic fait défiler R → A → C → I → R/A → vide. */
-function RaciMatrix({ contractId }: { contractId: number }) {
+function RaciMatrix({ contractId, onImported }: { contractId: number; onImported: () => void }) {
   const [people, setPeople] = useState<Rec[]>([]);
   const [rows, setRows] = useState<Rec[]>([]);
   const [activity, setActivity] = useState('');
@@ -160,9 +172,21 @@ function RaciMatrix({ contractId }: { contractId: number }) {
     load();
   };
 
-  if (!people.length) return <Empty>Ajoutez d’abord les intervenants : ils forment les colonnes de la matrice.</Empty>;
+  const tools = (
+    <div className="flex flex-wrap gap-2">
+      <ImportExportButtons contractId={contractId} kind="raci" onImported={onImported} />
+    </div>
+  );
+  if (!people.length)
+    return (
+      <div className="space-y-3">
+        {tools}
+        <Empty>Ajoutez les intervenants (onglet Intervenants) ou importez directement votre matrice RACI Excel : ses colonnes créeront les intervenants.</Empty>
+      </div>
+    );
   return (
     <div className="space-y-3">
+      {tools}
       <p className="text-xs text-slate-500">
         <b>R</b> réalise · <b>A</b> approuve (un seul par activité) · <b>C</b> consulté · <b>I</b> informé. Cliquez sur une case pour changer la lettre.
       </p>
@@ -224,9 +248,6 @@ function RaciMatrix({ contractId }: { contractId: number }) {
           <Plus size={16} /> Ajouter
         </button>
       </form>
-      <a className="text-xs text-indigo-700 hover:underline" href={`/api/contracts/${contractId}/raci.csv`}>
-        Exporter la matrice (CSV)
-      </a>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 {
   "name": "contrats-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Gestion contractuelle et documentaire (NEC3/NEC4, contrats français) – usage personnel, local",
   "type": "module",
   "engines": {
@@ -19,6 +19,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",
     "@kenjiuno/msgreader": "^1.29.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/fra": "1.0.0",
     "docx": "9.9.0",
     "exceljs": "4.4.0",
     "express": "^5.1.0",
@@ -26,6 +28,7 @@
     "mailparser": "^3.12.4",
     "mammoth": "1.13.0",
     "multer": "^2.0.2",
+    "tesseract.js": "7.0.0",
     "unpdf": "1.8.1"
   },
   "devDependencies": {

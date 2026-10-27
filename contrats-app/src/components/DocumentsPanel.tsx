@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Eye, FilePlus2, History, Pencil, Trash2 } from 'lucide-react';
+import { Download, Eye, FilePlus2, History, Pencil, ScanText, Trash2 } from 'lucide-react';
 import { api, fileUrl, type Rec } from '../api';
 import { DOCUMENT_CATEGORIES, DOCUMENT_FIELDS } from '../schemas';
 import { fmtDate, fmtDateTime, fmtSize } from '../format';
@@ -34,6 +34,23 @@ export function DocumentsPanel({
     api.get(`/api/documents?${params}`).then(setDocs).catch(toastError);
   }, [contractId, filterKey]);
   useEffect(load, [load]);
+  // OCR en tâche de fond : on rafraîchit tant qu'un document est en attente ou en cours.
+  const ocrRunning = docs.some((d) => d.text_status === 'ocr en attente' || d.text_status === 'ocr en cours');
+  useEffect(() => {
+    if (!ocrRunning) return;
+    const t = setTimeout(load, 4000);
+    return () => clearTimeout(t);
+  }, [ocrRunning, docs, load]);
+
+  const rerunOcr = async (doc: Rec) => {
+    try {
+      await api.post(`/api/documents/${doc.id}/ocr`, {});
+      toast('OCR relancé : le texte sera disponible dans quelques instants');
+      load();
+    } catch (e) {
+      toastError(e);
+    }
+  };
 
   const upload = async (files: File[], extra: Rec = {}) => {
     setBusy(true);
@@ -117,6 +134,7 @@ export function DocumentsPanel({
                     <div className="text-xs text-slate-400">
                       {d.original_name}
                       {d.reference && ` · réf. ${d.reference}`}
+                      <TextStatus doc={d} />
                     </div>
                   </td>
                   <td className="td whitespace-nowrap">{d.category}</td>
@@ -152,6 +170,11 @@ export function DocumentsPanel({
                       <button className="btn-ghost !p-1.5" title="Historique des versions" onClick={() => showVersions(d)}>
                         <History size={16} />
                       </button>
+                      {/\.(pdf|png|jpe?g|bmp|tiff?)$/i.test(d.original_name) && ['vide', 'ocr', 'ocr vide', 'ocr échoué', 'non supporté'].includes(d.text_status) && (
+                        <button className="btn-ghost !p-1.5" title="Relancer la reconnaissance de texte (OCR)" onClick={() => rerunOcr(d)}>
+                          <ScanText size={16} />
+                        </button>
+                      )}
                       <button className="btn-ghost !p-1.5" title="Modifier les informations" onClick={() => setEditing(d)}>
                         <Pencil size={16} />
                       </button>
@@ -227,4 +250,19 @@ export function DocumentsPanel({
       )}
     </div>
   );
+}
+
+/** État du texte du document : OCR en cours, lu par OCR (avec confiance) ou illisible. */
+function TextStatus({ doc }: { doc: Rec }) {
+  const s = doc.text_status;
+  if (s === 'ocr en attente' || s === 'ocr en cours')
+    return <span className="ml-1.5 rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-800">{s === 'ocr en cours' ? 'OCR en cours…' : 'OCR en attente'}</span>;
+  if (s === 'ocr')
+    return (
+      <span className={`ml-1.5 rounded px-1 text-[10px] font-medium ${doc.ocr_confidence < 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`} title="Texte reconnu par OCR (confiance moyenne)">
+        OCR {doc.ocr_confidence ?? '?'} %
+      </span>
+    );
+  if (['vide', 'ocr vide', 'ocr échoué'].includes(s)) return <span className="ml-1.5 rounded bg-red-100 px-1 text-[10px] font-medium text-red-800">texte illisible</span>;
+  return null;
 }

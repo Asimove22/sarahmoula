@@ -283,6 +283,7 @@ export const REVIEW_FIELDS: Field[] = [
   { name: 'status', label: 'Statut', type: 'select', options: ['à analyser', 'analysé', 'à négocier', 'accepté'] },
   { name: 'mitigation', label: 'Mesure de maîtrise', type: 'textarea', wide: true },
   { name: 'owner', label: 'Responsable' },
+  { name: 'history', label: 'Historique (veille, imports)', type: 'textarea', wide: true },
 ];
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -337,6 +338,8 @@ export const STATUS_COLORS: Record<string, string> = {
   info: 'bg-sky-100 text-sky-800',
   mandataire: 'bg-indigo-100 text-indigo-800',
   cotraitant: 'bg-slate-100 text-slate-700',
+  règle: 'bg-slate-100 text-slate-700',
+  IA: 'bg-violet-100 text-violet-800',
 };
 
 /** Onglet de la fiche contrat correspondant à chaque registre. */
@@ -378,4 +381,5 @@ export const ENTITY_LABELS: Record<string, string> = {
   raci_items: 'Activité RACI',
   communication_rules: 'Règle de communication',
   review_items: 'Point de revue',
+  review_updates: 'Veille de revue',
 };
