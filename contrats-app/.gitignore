@@ -1,0 +1,5 @@
+node_modules
+dist
+# Données personnelles : base, fichiers et sauvegardes restent sur le PC
+data/
+sauvegardes/

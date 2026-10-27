@@ -1,3 +1,5 @@
+> **Gestion contractuelle (NEC / contrats FR)** : l'application personnelle de gestion des contrats, de la GED et des Early Warnings se trouve dans [`contrats-app/`](contrats-app/README.md).
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
