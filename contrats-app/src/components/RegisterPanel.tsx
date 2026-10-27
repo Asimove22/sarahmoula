@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { FileSpreadsheet, Plus, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, Mail, Plus, Trash2 } from 'lucide-react';
 import { api, type Rec } from '../api';
 import type { Field } from '../schemas';
 import { EntityForm } from './EntityForm';
 import { DocumentsPanel } from './DocumentsPanel';
+import { LETTERS_BY_ENTITY, LetterModal } from './LetterModal';
 import { Empty, Modal, toast, toastError } from './ui';
 
 export interface Column {
@@ -34,6 +35,8 @@ export function RegisterPanel({
   formFooter,
   rowClassName,
   onChange,
+  hideAdd,
+  topContent,
 }: {
   table: string;
   contractId: number;
@@ -52,10 +55,15 @@ export function RegisterPanel({
   formFooter?: (row: Rec, close: () => void) => ReactNode;
   rowClassName?: (row: Rec) => string;
   onChange?: () => void;
+  hideAdd?: boolean;
+  /** Contenu affiché au-dessus du tableau (synthèse, graphique…). */
+  topContent?: ReactNode;
 }) {
   const [rows, setRows] = useState<Rec[]>([]);
   const [editing, setEditing] = useState<Rec | null>(null);
   const [filter, setFilter] = useState('');
+  const [letter, setLetter] = useState<{ template: string; entityId: number } | null>(null);
+  const letters = LETTERS_BY_ENTITY[table] ?? [];
 
   const load = useCallback(() => {
     api.get(`/api/${table}?contract_id=${contractId}`).then(setRows).catch(toastError);
@@ -114,11 +122,14 @@ export function RegisterPanel({
         <a className="btn-secondary" href={`/api/export/${table}.csv?contract_id=${contractId}`} title="Export CSV pour Excel">
           <FileSpreadsheet size={16} /> Excel
         </a>
-        <button className="btn-primary" onClick={() => setEditing({ ...defaults })}>
-          <Plus size={16} /> {addLabel}
-        </button>
+        {!hideAdd && (
+          <button className="btn-primary" onClick={() => setEditing({ ...defaults })}>
+            <Plus size={16} /> {addLabel}
+          </button>
+        )}
       </div>
       {toolbar}
+      {topContent}
       {shown.length === 0 ? (
         <Empty>{emptyText}</Empty>
       ) : (
@@ -164,6 +175,11 @@ export function RegisterPanel({
                   <button type="button" className="btn-danger" onClick={remove}>
                     <Trash2 size={16} /> Supprimer
                   </button>
+                  {letters.map((l) => (
+                    <button key={l.id} type="button" className="btn-secondary" onClick={() => setLetter({ template: l.id, entityId: editing.id })}>
+                      <Mail size={16} /> {l.label}
+                    </button>
+                  ))}
                   {formFooter?.(editing, close)}
                 </div>
               ) : null
@@ -176,6 +192,17 @@ export function RegisterPanel({
             </div>
           )}
         </Modal>
+      )}
+      {letter && (
+        <LetterModal
+          contractId={contractId}
+          template={letter.template}
+          entityId={letter.entityId}
+          onClose={() => {
+            setLetter(null);
+            changed();
+          }}
+        />
       )}
     </div>
   );

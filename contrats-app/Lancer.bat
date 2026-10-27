@@ -14,11 +14,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist node_modules (
-  echo Premiere installation : telechargement des composants, patientez...
-  call npm install --no-audit --no-fund
-  if errorlevel 1 ( pause & exit /b 1 )
-)
+rem Verifie les composants a chaque lancement : indispensable apres une mise a jour.
+echo Verification des composants (la premiere fois : 1 a 2 minutes)...
+call npm install --no-audit --no-fund --prefer-offline --loglevel=error
+if errorlevel 1 ( pause & exit /b 1 )
 
 echo Preparation de l'interface...
 call npm run build --silent

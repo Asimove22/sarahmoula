@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { CalendarClock, FileText, LayoutDashboard, Search } from 'lucide-react';
+import { CalendarClock, FileText, LayoutDashboard, Search, Settings } from 'lucide-react';
 import { Toaster } from './ui';
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   { to: '/contrats', label: 'Contrats', icon: FileText },
   { to: '/echeances', label: 'Échéancier', icon: CalendarClock },
   { to: '/recherche', label: 'Recherche', icon: Search },
+  { to: '/parametres', label: 'Paramètres', icon: Settings },
 ];
 
 export function Layout() {
@@ -20,7 +21,7 @@ export function Layout() {
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
           <div className="leading-tight">
             <div className="text-sm font-semibold">Gestion contractuelle</div>
-            <div className="text-[11px] text-slate-400">Contrats · GED · Early Warnings</div>
+            <div className="text-[11px] text-slate-400">Contrats · GED · Planning · IA</div>
           </div>
         </div>
         <form

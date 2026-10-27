@@ -17,10 +17,16 @@
     "test": "node --disable-warning=ExperimentalWarning --test server/*.test.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
     "@kenjiuno/msgreader": "^1.29.0",
+    "docx": "9.9.0",
+    "exceljs": "4.4.0",
     "express": "^5.1.0",
+    "fast-xml-parser": "5.11.2",
     "mailparser": "^3.12.4",
-    "multer": "^2.0.2"
+    "mammoth": "1.13.0",
+    "multer": "^2.0.2",
+    "unpdf": "1.8.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
@@ -35,5 +41,8 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vite": "^8.0.12"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

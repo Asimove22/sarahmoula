@@ -132,3 +132,21 @@ export function Toaster() {
     </div>
   );
 }
+
+/** Sous-onglets en pastilles (l'état est porté par le parent). */
+export function SubTabs({ tabs, value, onChange }: { tabs: { id: string; label: string; badge?: number }[]; value: string; onChange: (id: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          className={`rounded-full px-3 py-1 text-sm ${value === t.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
+        >
+          {t.label}
+          {t.badge ? <span className="ml-1.5 rounded-full bg-red-500 px-1.5 text-xs text-white">{t.badge}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+}

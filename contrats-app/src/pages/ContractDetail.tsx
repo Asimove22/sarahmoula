@@ -1,24 +1,41 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarPlus, ChevronLeft, Pencil, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarPlus, ChevronLeft, Mail, Pencil, Sparkles, Trash2 } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { DocumentsPanel } from '../components/DocumentsPanel';
 import { DeadlineList } from '../components/DeadlineList';
 import { EntityForm } from '../components/EntityForm';
+import { Insights } from '../components/Insights';
+import { LetterModal } from '../components/LetterModal';
 import { RegisterPanel } from '../components/RegisterPanel';
-import { Timeline } from '../components/Timeline';
 import { Badge, FileDrop, Modal, toast, toastError } from '../components/ui';
-import { CE_FIELDS, CONTRACT_FIELDS, CORRESPONDENCE_FIELDS, ENTITY_LABELS, EW_FIELDS, MILESTONE_FIELDS, frameworkLabel, isNec } from '../schemas';
-import { daysFromToday, fmtDate, fmtDateTime, fmtMoney, relativeDays, todayIso } from '../format';
+import { CE_FIELDS, CONTRACT_FIELDS, CORRESPONDENCE_FIELDS, ENTITY_LABELS, EW_FIELDS, frameworkLabel, isNec } from '../schemas';
+import { addDaysIso, daysFromToday, fmtDate, fmtDateTime, fmtMoney, relativeDays, todayIso } from '../format';
+import { ReviewTab } from './contract/ReviewTab';
+import { OrganisationTab } from './contract/OrganisationTab';
+import { PlanningTab } from './contract/PlanningTab';
+import { FinanceSummary, FinanceTab } from './contract/FinanceTab';
+import { VisasTab } from './contract/VisasTab';
+import { AssistantTab } from './contract/AssistantTab';
 
 const TABS = [
   { id: 'synthese', label: 'Synthèse' },
+  { id: 'revue', label: 'Revue' },
   { id: 'documents', label: 'Documents' },
+  { id: 'organisation', label: 'Organisation' },
+  { id: 'planning', label: 'Planning' },
+  { id: 'visas', label: 'Visas' },
+  { id: 'finances', label: 'Finances' },
   { id: 'ew', label: 'Early Warnings', nec: true },
   { id: 'ce', label: 'Compensation Events', nec: true },
   { id: 'echanges', label: 'Échanges' },
-  { id: 'planning', label: 'Planning' },
+  { id: 'assistant', label: 'Assistant IA' },
   { id: 'journal', label: 'Historique' },
+];
+
+const CONTRACT_LETTERS = [
+  { id: 'extension_request', label: 'Demande de prolongation de délai', frameworks: ['FR_PUBLIC', 'FR_PRIVE', 'COMMERCIAL'] },
+  { id: 'formal_notice', label: 'Mise en demeure', frameworks: [] as string[] },
 ];
 
 const dateCell = (key: string) => (r: Rec) => fmtDate(r[key]);
@@ -50,13 +67,19 @@ export function ContractDetail() {
   const navigate = useNavigate();
   const [contract, setContract] = useState<Rec | null>(null);
   const [deadlines, setDeadlines] = useState<Rec[]>([]);
+  const [insights, setInsights] = useState<Rec[]>([]);
   const [editing, setEditing] = useState(false);
+  const [letter, setLetter] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const tab = params.get('tab') ?? 'synthese';
   const openId = params.get('open') ? Number(params.get('open')) : undefined;
+  const entity = params.get('e') ?? undefined;
 
   const load = useCallback(() => {
     api.get<Rec>(`/api/contracts/${id}`).then(setContract).catch(toastError);
     api.get(`/api/deadlines?contract_id=${id}`).then(setDeadlines).catch(toastError);
+    api.get(`/api/insights?contract_id=${id}`).then(setInsights).catch(toastError);
+    setRefreshKey((k) => k + 1);
   }, [id]);
   useEffect(load, [load]);
 
@@ -64,6 +87,7 @@ export function ContractDetail() {
   const nec = isNec(contract);
   const tabs = TABS.filter((t) => !t.nec || nec);
   const goTab = (t: string, open?: number) => setParams(open ? { tab: t, open: String(open) } : { tab: t });
+  const alerts = (t: string) => insights.filter((i) => i.tab === t && i.level !== 'info').length;
 
   const removeContract = async () => {
     const answer = prompt(`Supprimer le contrat et TOUS ses registres ?\nLes fichiers seront déplacés dans la corbeille.\n\nTapez SUPPRIMER pour confirmer.\n(Conseil : préférez le statut « archivé ».)`);
@@ -89,6 +113,7 @@ export function ContractDetail() {
               {contract.nec_option && ` option ${contract.nec_option}`}
             </span>
             {contract.counterparty && <span>· {contract.counterparty}</span>}
+            {contract.group_type && <span>· groupement {contract.group_type}</span>}
             <Badge value={contract.status} />
           </div>
         </div>
@@ -108,44 +133,76 @@ export function ContractDetail() {
             className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${tab === t.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             {t.label}
+            {alerts(t.id) > 0 && <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] text-white">{alerts(t.id)}</span>}
           </button>
         ))}
       </nav>
 
       {tab === 'synthese' && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <section className="card p-4 lg:col-span-2">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
-              <Info label="Mon rôle">{contract.my_role}</Info>
-              <Info label="Cocontractant">{contract.counterparty}</Info>
-              <Info label="Projet">{contract.project}</Info>
-              <Info label="Montant HT">{fmtMoney(contract.amount, contract.currency)}</Info>
-              <Info label="Signature">{fmtDate(contract.signature_date)}</Info>
-              <Info label="Démarrage">{fmtDate(contract.start_date)}</Info>
-              <Info label="Achèvement">{fmtDate(contract.completion_date)}</Info>
-              <Info label="Fin / échéance">{fmtDate(contract.end_date)}</Info>
-              <Info label="Préavis">
-                {contract.notice_period_days ? `${contract.notice_period_days} j${contract.tacit_renewal ? ' · reconduction tacite' : ''}` : contract.tacit_renewal ? 'Reconduction tacite' : '—'}
-              </Info>
-              <Info label="Project Manager / MOE">{contract.project_manager}</Info>
-              <Info label="Supervisor / contrôle">{contract.supervisor}</Info>
-              {nec && (
-                <Info label="Délais NEC (sem.)">
-                  notif. CE {contract.ce_notify_weeks} · rép. PM {contract.pm_reply_weeks} · devis {contract.quote_weeks} · rép. devis {contract.pm_quote_reply_weeks}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="min-w-0 space-y-4 lg:col-span-2">
+            <section className="card p-4">
+              <h2 className="mb-2 font-semibold">Points d’attention ({insights.length})</h2>
+              <Insights items={insights} showContract={false} limit={8} />
+            </section>
+            <section className="card p-4">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
+                <Info label="Mon rôle">{contract.my_role}</Info>
+                <Info label="Cocontractant">{contract.counterparty}</Info>
+                <Info label="Projet">{contract.project}</Info>
+                <Info label="Montant HT initial">{fmtMoney(contract.amount, contract.currency)}</Info>
+                <Info label="Signature">{fmtDate(contract.signature_date)}</Info>
+                <Info label="Démarrage">{fmtDate(contract.start_date)}</Info>
+                <Info label="Achèvement">{fmtDate(contract.completion_date)}</Info>
+                <Info label="Fin / échéance">{fmtDate(contract.end_date)}</Info>
+                <Info label="Réception">{fmtDate(contract.reception_date)}</Info>
+                <Info label="Préavis">
+                  {contract.notice_period_days ? `${contract.notice_period_days} j${contract.tacit_renewal ? ' · reconduction tacite' : ''}` : contract.tacit_renewal ? 'Reconduction tacite' : '—'}
                 </Info>
-              )}
-            </dl>
-            {contract.contacts && <p className="mt-4 whitespace-pre-line border-t border-slate-100 pt-3 text-sm">{contract.contacts}</p>}
-            {contract.notes && <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{contract.notes}</p>}
-          </section>
-          <section className="card p-4">
-            <h2 className="mb-2 font-semibold">Échéances du contrat</h2>
-            <DeadlineList items={deadlines} showContract={false} empty="Aucune échéance ouverte." />
-          </section>
+                <Info label="Paiement / retenue">
+                  {[contract.payment_days && `${contract.payment_days} j`, contract.retention_percent && `RG ${contract.retention_percent} %`].filter(Boolean).join(' · ')}
+                </Info>
+                <Info label="Pénalités">{contract.penalty_terms}</Info>
+                <Info label="Révision des prix">{contract.price_revision}</Info>
+                <Info label="Project Manager / MOE">{contract.project_manager}</Info>
+                <Info label="Délai de visa">{contract.visa_days ? `${contract.visa_days} j` : ''}</Info>
+                {nec && (
+                  <Info label="Délais NEC (sem.)">
+                    notif. CE {contract.ce_notify_weeks} · rép. PM {contract.pm_reply_weeks} · devis {contract.quote_weeks} · rép. devis {contract.pm_quote_reply_weeks}
+                  </Info>
+                )}
+                <Info label="IA">{contract.ai_allow_cloud ? 'Claude autorisé (cloud)' : 'Locale uniquement'}</Info>
+              </dl>
+              {contract.contacts && <p className="mt-4 whitespace-pre-line border-t border-slate-100 pt-3 text-sm">{contract.contacts}</p>}
+              {contract.notes && <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{contract.notes}</p>}
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                {CONTRACT_LETTERS.filter((l) => !l.frameworks.length || l.frameworks.includes(contract.framework)).map((l) => (
+                  <button key={l.id} className="btn-secondary" onClick={() => setLetter(l.id)}>
+                    <Mail size={16} /> {l.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+          <div className="min-w-0 space-y-4">
+            <section className="card p-4">
+              <h2 className="mb-2 font-semibold">Finances</h2>
+              <FinanceSummary contract={contract} refreshKey={refreshKey} compact />
+            </section>
+            <section className="card p-4">
+              <h2 className="mb-2 font-semibold">Échéances du contrat</h2>
+              <DeadlineList items={deadlines} showContract={false} empty="Aucune échéance ouverte." />
+            </section>
+          </div>
         </div>
       )}
 
+      {tab === 'revue' && <ReviewTab contract={contract} openId={openId} onChange={load} />}
       {tab === 'documents' && <DocumentsPanel contractId={id} defaultCategory="Contrat" />}
+      {tab === 'organisation' && <OrganisationTab contract={contract} openId={openId} onChange={load} />}
+      {tab === 'planning' && <PlanningTab contract={contract} openId={openId} entity={entity} onChange={load} />}
+      {tab === 'visas' && <VisasTab contract={contract} openId={openId} onChange={load} onOpen={(o) => goTab('visas', o)} />}
+      {tab === 'finances' && <FinanceTab contract={contract} openId={openId} entity={entity} onChange={load} />}
 
       {tab === 'ew' && (
         <RegisterPanel
@@ -158,7 +215,7 @@ export function ContractDetail() {
           defaults={{ status: 'ouvert', date_notified: todayIso(), raised_by: contract.my_role === 'Entrepreneur' ? 'Entrepreneur' : undefined }}
           docLink="early_warning_id"
           docCategory="Échange"
-          openId={tab === 'ew' ? openId : undefined}
+          openId={openId}
           onChange={load}
           columns={[
             { key: 'number', label: 'N°', className: 'whitespace-nowrap font-medium' },
@@ -200,7 +257,7 @@ export function ContractDetail() {
                   }
                 }}
               >
-                Convertir en Compensation Event →
+                Convertir en CE →
               </button>
             ) : null
           }
@@ -218,7 +275,7 @@ export function ContractDetail() {
           defaults={{ status: 'notifié', notified_by: contract.my_role === 'Entrepreneur' ? 'Entrepreneur' : undefined }}
           docLink="compensation_event_id"
           docCategory="Échange"
-          openId={tab === 'ce' ? openId : undefined}
+          openId={openId}
           onChange={load}
           rowClassName={(r) => (r.time_barred_risk ? 'bg-red-50' : '')}
           columns={[
@@ -274,8 +331,8 @@ export function ContractDetail() {
         />
       )}
 
-      {tab === 'echanges' && <CorrespondenceTab contractId={id} openId={openId} onChange={load} />}
-      {tab === 'planning' && <PlanningTab contract={contract} openId={openId} onChange={load} />}
+      {tab === 'echanges' && <CorrespondenceTab contract={contract} openId={openId} onChange={load} onGoTab={goTab} />}
+      {tab === 'assistant' && <AssistantTab contract={contract} />}
       {tab === 'journal' && <JournalTab contractId={id} />}
 
       {editing && (
@@ -302,14 +359,17 @@ export function ContractDetail() {
           />
         </Modal>
       )}
+      {letter && <LetterModal contractId={id} template={letter} onClose={() => { setLetter(null); load(); }} />}
     </div>
   );
 }
 
-function CorrespondenceTab({ contractId, openId, onChange }: { contractId: number; openId?: number; onChange: () => void }) {
+function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: Rec; openId?: number; onChange: () => void; onGoTab: (tab: string, open?: number) => void }) {
+  const contractId = contract.id;
   const [direction, setDirection] = useState('entrant');
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [triage, setTriage] = useState<{ message: Rec; result: Rec; close: () => void } | null>(null);
 
   const importFiles = async (files: File[]) => {
     setBusy(true);
@@ -326,102 +386,135 @@ function CorrespondenceTab({ contractId, openId, onChange }: { contractId: numbe
     }
   };
 
-  return (
-    <RegisterPanel
-      table="correspondence"
-      contractId={contractId}
-      title="Registre des échanges"
-      addLabel="Saisir un échange"
-      emptyText="Aucun échange. Glissez des emails (.eml, .msg) ou des courriers (PDF) dans la zone ci-dessus."
-      fields={CORRESPONDENCE_FIELDS}
-      defaults={{ direction: 'entrant', date: todayIso(), status: 'à traiter', type: 'Courrier' }}
-      docLink="correspondence_id"
-      docCategory="Échange"
-      openId={openId}
-      refreshKey={refreshKey}
-      onChange={onChange}
-      toolbar={
-        <div className="flex flex-wrap items-center gap-3">
-          <select className="input w-auto" value={direction} onChange={(e) => setDirection(e.target.value)}>
-            <option value="entrant">Échanges reçus</option>
-            <option value="sortant">Échanges envoyés</option>
-          </select>
-          <div className="min-w-[260px] flex-1">
-            <FileDrop compact onFiles={importFiles} label={busy ? 'Import en cours…' : 'Déposez ici emails Outlook (.msg), .eml ou PDF : objet, expéditeur, date et pièces jointes sont lus automatiquement'} />
-          </div>
-        </div>
-      }
-      columns={[
-        { key: 'reference', label: 'Réf.', className: 'whitespace-nowrap font-medium' },
-        { key: 'date', label: 'Date', render: dateCell('date'), className: 'whitespace-nowrap' },
-        {
-          key: 'direction',
-          label: '',
-          render: (r) => (r.direction === 'sortant' ? <ArrowUpRight size={16} className="text-indigo-600" aria-label="Envoyé" /> : <ArrowDownLeft size={16} className="text-emerald-600" aria-label="Reçu" />),
-        },
-        {
-          key: 'subject',
-          label: 'Objet',
-          render: (r) => (
-            <>
-              {r.subject}
-              <div className="text-xs text-slate-400">
-                {r.type}
-                {r.documents_count > 0 && ` · ${r.documents_count} fichier(s)`}
-              </div>
-            </>
-          ),
-        },
-        { key: 'party', label: 'De / À', render: (r) => <span className="text-xs">{r.direction === 'sortant' ? r.recipient : r.sender}</span> },
-        { key: 'response_due', label: 'Réponse avant', render: (r) => (r.response_required && !r.response_date ? <DueCell date={r.response_due} /> : r.response_date ? `répondu ${fmtDate(r.response_date)}` : '—'), className: 'whitespace-nowrap' },
-        { key: 'status', label: 'Statut', render: statusCell },
-      ]}
-    />
-  );
-}
+  const applyTriage = async () => {
+    const { message, result } = triage!;
+    try {
+      await api.put(`/api/correspondence/${message.id}`, {
+        response_required: result.response_required ? 1 : 0,
+        response_due: result.response_required ? addDaysIso(message.date || todayIso(), result.response_days || 15) : null,
+        status: message.status === 'à traiter' ? 'en cours' : message.status,
+      });
+      toast('Échange qualifié');
+      triage!.close();
+      setTriage(null);
+      setRefreshKey((k) => k + 1);
+      onChange();
+    } catch (e) {
+      toastError(e);
+    }
+  };
 
-function PlanningTab({ contract, openId, onChange }: { contract: Rec; openId?: number; onChange: () => void }) {
-  const [milestones, setMilestones] = useState<Rec[]>([]);
-  const load = useCallback(() => {
-    api.get(`/api/milestones?contract_id=${contract.id}`).then(setMilestones).catch(toastError);
-  }, [contract.id]);
-  useEffect(load, [load]);
+  const createEw = async () => {
+    const { message, result } = triage!;
+    const ew = await api.post('/api/early_warnings', { contract_id: contractId, title: message.subject, description: `${result.summary}\n\n${result.risk_reason}`, date_notified: todayIso(), status: 'ouvert' });
+    triage!.close();
+    setTriage(null);
+    toast(`${ew.number} créé : complétez-le et notifiez-le`);
+    onGoTab('ew', ew.id);
+  };
+
   return (
-    <div className="space-y-4">
-      <Timeline milestones={milestones} contract={contract} />
+    <>
       <RegisterPanel
-        table="milestones"
-        contractId={contract.id}
-        title="Jalons et échéances du planning"
-        addLabel="Ajouter un jalon"
-        emptyText="Aucun jalon. Ajoutez les Key Dates, la Completion Date, les soumissions de programme, les réunions…"
-        fields={MILESTONE_FIELDS}
-        defaults={{ status: 'à venir', type: 'Jalon' }}
+        table="correspondence"
+        contractId={contractId}
+        title="Registre des échanges"
+        addLabel="Saisir un échange"
+        emptyText="Aucun échange. Glissez des emails (.eml, .msg) ou des courriers (PDF) dans la zone ci-dessus."
+        fields={CORRESPONDENCE_FIELDS}
+        defaults={{ direction: 'entrant', date: todayIso(), status: 'à traiter', type: 'Courrier' }}
+        docLink="correspondence_id"
+        docCategory="Échange"
         openId={openId}
-        onChange={() => {
-          load();
-          onChange();
-        }}
+        refreshKey={refreshKey}
+        onChange={onChange}
+        formFooter={(m, close) => (
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={async () => {
+              try {
+                const result = await api.post('/api/ai/triage', { correspondence_id: m.id });
+                setTriage({ message: m, result, close });
+              } catch (e) {
+                toastError(e);
+              }
+            }}
+          >
+            <Sparkles size={16} /> Analyser avec l’IA
+          </button>
+        )}
+        toolbar={
+          <div className="flex flex-wrap items-center gap-3">
+            <select className="input w-auto" value={direction} onChange={(e) => setDirection(e.target.value)}>
+              <option value="entrant">Échanges reçus</option>
+              <option value="sortant">Échanges envoyés</option>
+            </select>
+            <div className="min-w-[260px] flex-1">
+              <FileDrop compact onFiles={importFiles} label={busy ? 'Import en cours…' : 'Déposez ici emails Outlook (.msg), .eml ou PDF : objet, expéditeur, date et pièces jointes sont lus automatiquement'} />
+            </div>
+          </div>
+        }
         columns={[
-          { key: 'title', label: 'Jalon', className: 'font-medium' },
-          { key: 'type', label: 'Type' },
-          { key: 'planned_date', label: 'Prévu', render: dateCell('planned_date'), className: 'whitespace-nowrap' },
-          { key: 'forecast_date', label: 'Prévision', render: (r) => (r.actual_date ? '—' : <DueCell date={r.forecast_date || r.planned_date} />), className: 'whitespace-nowrap' },
-          { key: 'actual_date', label: 'Réel', render: dateCell('actual_date'), className: 'whitespace-nowrap' },
+          { key: 'reference', label: 'Réf.', className: 'whitespace-nowrap font-medium' },
+          { key: 'date', label: 'Date', render: dateCell('date'), className: 'whitespace-nowrap' },
           {
-            key: 'slip',
-            label: 'Écart',
-            render: (r) => {
-              const end = r.actual_date || r.forecast_date;
-              if (!r.planned_date || !end) return '—';
-              const n = daysFromToday(end) - daysFromToday(r.planned_date);
-              return <span className={n > 0 ? 'text-red-600' : 'text-emerald-700'}>{n > 0 ? `+${n} j` : `${n} j`}</span>;
-            },
+            key: 'direction',
+            label: '',
+            render: (r) => (r.direction === 'sortant' ? <ArrowUpRight size={16} className="text-indigo-600" aria-label="Envoyé" /> : <ArrowDownLeft size={16} className="text-emerald-600" aria-label="Reçu" />),
           },
+          {
+            key: 'subject',
+            label: 'Objet',
+            render: (r) => (
+              <>
+                {r.subject}
+                <div className="text-xs text-slate-400">
+                  {r.type}
+                  {r.documents_count > 0 && ` · ${r.documents_count} fichier(s)`}
+                </div>
+              </>
+            ),
+          },
+          { key: 'party', label: 'De / À', render: (r) => <span className="text-xs">{r.direction === 'sortant' ? r.recipient : r.sender}</span> },
+          { key: 'response_due', label: 'Réponse avant', render: (r) => (r.response_required && !r.response_date ? <DueCell date={r.response_due} /> : r.response_date ? `répondu ${fmtDate(r.response_date)}` : '—'), className: 'whitespace-nowrap' },
           { key: 'status', label: 'Statut', render: statusCell },
         ]}
       />
-    </div>
+      {triage && (
+        <Modal title={`Analyse IA : ${triage.message.subject}`} onClose={() => setTriage(null)}>
+          <div className="space-y-3 text-sm">
+            <p className="whitespace-pre-line">{triage.result.summary}</p>
+            <p>
+              Réponse attendue : <b>{triage.result.response_required ? `oui, sous ${triage.result.response_days} jour(s)` : 'non'}</b>
+            </p>
+            {triage.result.actions?.length > 0 && (
+              <ul className="list-disc pl-5">
+                {triage.result.actions.map((a: string, i: number) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            )}
+            {triage.result.risk !== 'aucun' && (
+              <p className="rounded bg-amber-50 p-2 text-amber-900">
+                Risque détecté : <b>{triage.result.risk.replace('_', ' ')}</b> — {triage.result.risk_reason}
+              </p>
+            )}
+            <p className="text-xs text-slate-400">Analyse générée par {triage.result.provider === 'claude' ? 'Claude' : 'l’IA locale'} : à valider.</p>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+              {isNec(contract) && ['early_warning', 'compensation_event'].includes(triage.result.risk) && (
+                <button className="btn-secondary" onClick={() => createEw().catch(toastError)}>
+                  Créer un Early Warning
+                </button>
+              )}
+              <button className="btn-primary" onClick={applyTriage}>
+                Appliquer (réponse attendue, statut)
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -436,7 +529,7 @@ function JournalTab({ contractId }: { contractId: number }) {
         {rows.map((j) => (
           <li key={j.id} className="flex gap-3 py-1.5">
             <span className="w-32 shrink-0 text-xs text-slate-400">{fmtDateTime(j.at)}</span>
-            <span className="w-36 shrink-0 text-slate-500">{ENTITY_LABELS[j.entity]}</span>
+            <span className="w-40 shrink-0 text-slate-500">{ENTITY_LABELS[j.entity] ?? j.entity}</span>
             <span className="w-28 shrink-0">{j.action}</span>
             <span className="min-w-0">{j.summary}</span>
           </li>

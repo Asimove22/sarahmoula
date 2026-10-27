@@ -103,7 +103,7 @@ export function Contracts() {
         <Modal title="Nouveau contrat" onClose={() => setParams({})}>
           <EntityForm
             fields={CONTRACT_FIELDS}
-            initial={{ framework: 'NEC4', status: 'actif', currency: 'EUR', ce_notify_weeks: 8, pm_reply_weeks: 1, quote_weeks: 3, pm_quote_reply_weeks: 2 }}
+            initial={{ framework: 'NEC4', status: 'actif', currency: 'EUR', ce_notify_weeks: 8, pm_reply_weeks: 1, quote_weeks: 3, pm_quote_reply_weeks: 2, pm_programme_reply_weeks: 2, visa_days: 15 }}
             submitLabel="Créer le contrat"
             onCancel={() => setParams({})}
             onSubmit={async (values) => {

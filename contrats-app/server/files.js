@@ -65,8 +65,8 @@ export function createFileStore(dataDir) {
       const result = db
         .prepare(
           `INSERT INTO documents (contract_id, family_id, version, category, title, reference, doc_date, original_name,
-             stored_name, mime, size, sha256, correspondence_id, early_warning_id, compensation_event_id, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             stored_name, mime, size, sha256, correspondence_id, early_warning_id, compensation_event_id, submittal_id, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           Number(contractId),
@@ -84,6 +84,7 @@ export function createFileStore(dataDir) {
           meta.correspondence_id ? Number(meta.correspondence_id) : null,
           meta.early_warning_id ? Number(meta.early_warning_id) : null,
           meta.compensation_event_id ? Number(meta.compensation_event_id) : null,
+          meta.submittal_id ? Number(meta.submittal_id) : null,
           meta.notes || null,
         );
       const id = Number(result.lastInsertRowid);

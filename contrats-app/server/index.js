@@ -20,6 +20,11 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  Gestion contractuelle démarrée : ${url}`);
   console.log(`  Données : ${dataDir}`);
   console.log('  Fermez cette fenêtre pour arrêter l’application.\n');
+  // Documents archivés avant la V2 : extraction du texte en tâche de fond pour la recherche et l'IA.
+  app.locals
+    .reindexMissing()
+    .then((n) => n && console.log(`  ${n} document(s) indexé(s) pour la recherche plein texte.`))
+    .catch((e) => console.warn('Indexation des documents interrompue :', e.message));
   if (process.env.OPEN_BROWSER) {
     const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
     exec(cmd);

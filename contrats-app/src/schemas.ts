@@ -30,15 +30,27 @@ export const frameworkLabel = (v?: string) => FRAMEWORKS.find((f) => f.value ===
 export const CONTRACT_STATUSES = ['brouillon', 'actif', 'suspendu', 'clôturé', 'résilié', 'archivé'];
 export const EW_STATUSES = ['ouvert', 'clos', 'converti en CE'];
 export const CE_STATUSES = ['notifié', 'devis demandé', 'devis soumis', 'implémenté', 'rejeté', 'retiré'];
-export const CORR_STATUSES = ['à traiter', 'en cours', 'répondu', 'envoyé', 'classé'];
+export const CORR_STATUSES = ['à traiter', 'en cours', 'répondu', 'à envoyer', 'envoyé', 'classé'];
 export const MILESTONE_STATUSES = ['à venir', 'en cours', 'atteint', 'en retard', 'annulé'];
 
 export const DOCUMENT_CATEGORIES = [
   'Contrat',
+  'Acte d’engagement',
+  'Contract Data',
+  'CCAP',
+  'CCTP',
+  'Scope / Works Information',
+  'CCAG Travaux',
   'Annexe',
   'Avenant',
-  'Contract Data / CCAP',
+  'Convention de groupement',
+  'BPU / DQE / DPGF',
   'Programme / Planning',
+  'WBS',
+  'RACI',
+  'Matrice de communication',
+  'Revue de contrat',
+  'Visa / Document technique',
   'Échange',
   'Pièce jointe',
   'Compte rendu / PV',
@@ -46,6 +58,7 @@ export const DOCUMENT_CATEGORIES = [
   'Garantie / Caution',
   'Assurance',
   'Plan / Technique',
+  'Contract Data / CCAP',
   'Autre',
 ];
 
@@ -67,8 +80,16 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'start_date', label: 'Date de démarrage (starting date)', type: 'date' },
   { name: 'completion_date', label: "Date d'achèvement (Completion Date)", type: 'date' },
   { name: 'end_date', label: 'Date de fin / échéance', type: 'date' },
+  { name: 'reception_date', label: 'Date de réception des travaux', type: 'date', help: 'Déclenche les alertes de fin de garanties (parfait achèvement, biennale).' },
   { name: 'notice_period_days', label: 'Préavis de résiliation (jours)', type: 'number', help: 'Génère une alerte « date limite de préavis » avant la fin.' },
   { name: 'tacit_renewal', label: 'Reconduction tacite', type: 'checkbox' },
+  { name: 'payment_days', label: 'Délai de paiement (jours)', type: 'number', section: 'Conditions financières', help: 'Par défaut : 30 j (21 j en NEC).' },
+  { name: 'retention_percent', label: 'Retenue de garantie (%)', type: 'number' },
+  { name: 'advance_amount', label: 'Avance (montant)', type: 'number' },
+  { name: 'price_revision', label: 'Révision / actualisation des prix', placeholder: 'ex. index BT01, mois zéro…' },
+  { name: 'penalty_terms', label: 'Pénalités de retard', placeholder: 'ex. 1/1000 par jour, plafond 10 %', wide: true },
+  { name: 'visa_days', label: 'Délai de visa (jours)', type: 'number', help: 'Délai laissé au MOE / PM pour viser un document (15 j par défaut).' },
+  { name: 'group_type', label: 'Groupement', type: 'select', options: [{ value: 'conjoint', label: 'Groupement conjoint' }, { value: 'solidaire', label: 'Groupement solidaire' }] },
   { name: 'project_manager', label: "Project Manager / Maître d'œuvre", section: 'Intervenants' },
   { name: 'supervisor', label: 'Supervisor / Contrôleur' },
   { name: 'contacts', label: 'Contacts utiles', type: 'textarea', wide: true },
@@ -76,6 +97,9 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'pm_reply_weeks', label: 'Réponse PM à notification (sem.) – cl. 61.4', type: 'number', showIf: nec },
   { name: 'quote_weeks', label: 'Remise du devis (sem.) – cl. 62.3', type: 'number', showIf: nec },
   { name: 'pm_quote_reply_weeks', label: 'Réponse PM au devis (sem.) – cl. 62.3', type: 'number', showIf: nec },
+  { name: 'pm_programme_reply_weeks', label: 'Réponse PM au programme (sem.) – cl. 31.3', type: 'number', showIf: nec },
+  { name: 'programme_interval_weeks', label: 'Intervalle des programmes révisés (sem.) – cl. 32.2', type: 'number', showIf: nec, help: 'Selon le Contract Data.' },
+  { name: 'ai_allow_cloud', label: 'Autoriser l’IA cloud (Claude) pour ce contrat', type: 'checkbox', section: 'Assistant IA', help: 'Sinon, seule l’IA locale (Ollama) lit ses documents.' },
   { name: 'notes', label: 'Notes', type: 'textarea', wide: true, section: 'Notes' },
 ];
 
@@ -158,6 +182,109 @@ export const DOCUMENT_FIELDS: Field[] = [
   { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
 ];
 
+export const AMENDMENT_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (AV-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['en négociation', 'signé', 'refusé'] },
+  { name: 'title', label: 'Objet', required: true, wide: true },
+  { name: 'signature_date', label: 'Date de signature', type: 'date' },
+  { name: 'amount', label: 'Incidence financière (HT)', type: 'number', help: 'Négatif pour une moins-value.' },
+  { name: 'extra_days', label: 'Incidence sur le délai (jours)', type: 'number' },
+  { name: 'description', label: 'Description', type: 'textarea', wide: true },
+];
+
+export const PAYMENT_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (SIT-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['soumise', 'validée', 'payée', 'contestée'] },
+  { name: 'period', label: 'Période', placeholder: 'ex. mars 2027' },
+  { name: 'submitted_date', label: 'Date de remise', type: 'date' },
+  { name: 'amount_requested', label: 'Montant demandé (HT)', type: 'number' },
+  { name: 'validated_date', label: 'Date de validation', type: 'date' },
+  { name: 'amount_validated', label: 'Montant validé (HT)', type: 'number' },
+  { name: 'due_date', label: 'Échéance de paiement', type: 'date', help: 'Laisser vide : calculée avec le délai de paiement du contrat.' },
+  { name: 'paid_date', label: 'Payée le', type: 'date' },
+  { name: 'amount_paid', label: 'Montant payé', type: 'number' },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const PROGRAMME_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (PRG-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['soumis', 'accepté', 'non accepté', 'remplacé'] },
+  { name: 'title', label: 'Intitulé', required: true, wide: true, placeholder: 'ex. Programme révisé n°3' },
+  { name: 'submitted_date', label: 'Soumis le', type: 'date' },
+  { name: 'planned_completion', label: 'Planned Completion', type: 'date' },
+  { name: 'pm_response_date', label: 'Réponse du PM le', type: 'date' },
+  { name: 'decision', label: 'Décision', type: 'select', options: ['accepté', 'non accepté'] },
+  { name: 'reasons', label: 'Motifs de non-acceptation (cl. 31.3)', type: 'textarea', wide: true },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const VISA_STATUSES = ['en attente', 'VSO', 'VAO', 'refusé', 'sans objet'];
+export const SUBMITTAL_FIELDS: Field[] = [
+  { name: 'number', label: 'N° document', placeholder: 'auto (VIS-001…)' },
+  { name: 'revision', label: 'Indice' },
+  { name: 'title', label: 'Intitulé', required: true, wide: true },
+  { name: 'discipline', label: 'Lot / discipline' },
+  { name: 'emitter', label: 'Émetteur' },
+  { name: 'reviewer', label: 'Viseur (MOE / PM / BCT)' },
+  { name: 'submitted_date', label: 'Transmis le', type: 'date' },
+  { name: 'visa_due', label: 'Visa attendu le', type: 'date', help: 'Laisser vide : calculé avec le délai de visa du contrat.' },
+  { name: 'visa_date', label: 'Visé le', type: 'date' },
+  { name: 'visa_status', label: 'Avis', type: 'select', options: VISA_STATUSES },
+  { name: 'comments', label: 'Observations', type: 'textarea', wide: true },
+];
+
+export const STAKEHOLDER_FIELDS: Field[] = [
+  { name: 'name', label: 'Nom', required: true },
+  { name: 'organisation', label: 'Organisme' },
+  { name: 'role', label: 'Rôle', placeholder: 'ex. Project Manager, MOE, OPC, BCT…' },
+  { name: 'email', label: 'Email' },
+  { name: 'phone', label: 'Téléphone' },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const GROUP_MEMBER_FIELDS: Field[] = [
+  { name: 'company', label: 'Entreprise', required: true },
+  { name: 'role', label: 'Rôle', type: 'select', options: ['mandataire', 'cotraitant'] },
+  { name: 'share_percent', label: 'Quote-part (%)', type: 'number' },
+  { name: 'amount', label: 'Montant de sa part (HT)', type: 'number' },
+  { name: 'scope', label: 'Prestations à sa charge', type: 'textarea', wide: true },
+  { name: 'contact', label: 'Contact' },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const WBS_FIELDS: Field[] = [
+  { name: 'code', label: 'Code WBS', required: true, placeholder: 'ex. 1.2.3' },
+  { name: 'parent_code', label: 'Code parent' },
+  { name: 'title', label: 'Intitulé', required: true, wide: true },
+  { name: 'budget', label: 'Budget (HT)', type: 'number' },
+  { name: 'owner', label: 'Responsable' },
+  { name: 'description', label: 'Description', type: 'textarea', wide: true },
+];
+
+export const COMMUNICATION_FIELDS: Field[] = [
+  { name: 'subject', label: 'Information / document', required: true, wide: true, placeholder: 'ex. Notifications de Compensation Events' },
+  { name: 'info_type', label: 'Type (pour les courriers)', type: 'select', options: ['Early Warning', 'Compensation Event', 'Courrier', 'Visa', 'Paiement', 'Délai', 'Mise en demeure', 'Compte rendu', 'Autre'], help: 'Sert à proposer le destinataire lors de la génération d’un courrier.' },
+  { name: 'sender', label: 'Émetteur' },
+  { name: 'recipients', label: 'Destinataires' },
+  { name: 'cc', label: 'Copie' },
+  { name: 'channel', label: 'Canal', type: 'select', options: ['Email', 'LRAR', 'Plateforme', 'Courrier remis en main propre', 'Réunion', 'Autre'] },
+  { name: 'frequency', label: 'Fréquence', placeholder: 'ex. hebdomadaire, à l’événement' },
+  { name: 'delay_days', label: 'Délai (jours)', type: 'number' },
+  { name: 'clause', label: 'Clause' },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const RISK_LEVELS = ['faible', 'moyen', 'élevé', 'critique'];
+export const REVIEW_FIELDS: Field[] = [
+  { name: 'theme', label: 'Thème', required: true },
+  { name: 'clause_ref', label: 'Clause / article' },
+  { name: 'content', label: 'Contenu / constat', type: 'textarea', wide: true },
+  { name: 'risk_level', label: 'Niveau de risque', type: 'select', options: RISK_LEVELS },
+  { name: 'status', label: 'Statut', type: 'select', options: ['à analyser', 'analysé', 'à négocier', 'accepté'] },
+  { name: 'mitigation', label: 'Mesure de maîtrise', type: 'textarea', wide: true },
+  { name: 'owner', label: 'Responsable' },
+];
+
 export const STATUS_COLORS: Record<string, string> = {
   actif: 'bg-emerald-100 text-emerald-800',
   brouillon: 'bg-slate-100 text-slate-700',
@@ -183,6 +310,33 @@ export const STATUS_COLORS: Record<string, string> = {
   atteint: 'bg-emerald-100 text-emerald-800',
   'en retard': 'bg-red-100 text-red-800',
   annulé: 'bg-slate-200 text-slate-600',
+  'à envoyer': 'bg-violet-100 text-violet-800',
+  'en négociation': 'bg-amber-100 text-amber-800',
+  signé: 'bg-emerald-100 text-emerald-800',
+  refusé: 'bg-red-100 text-red-800',
+  soumise: 'bg-sky-100 text-sky-800',
+  validée: 'bg-indigo-100 text-indigo-800',
+  payée: 'bg-emerald-100 text-emerald-800',
+  contestée: 'bg-red-100 text-red-800',
+  soumis: 'bg-sky-100 text-sky-800',
+  accepté: 'bg-emerald-100 text-emerald-800',
+  'non accepté': 'bg-red-100 text-red-800',
+  remplacé: 'bg-slate-200 text-slate-600',
+  'en attente': 'bg-amber-100 text-amber-800',
+  VSO: 'bg-emerald-100 text-emerald-800',
+  VAO: 'bg-lime-100 text-lime-800',
+  'sans objet': 'bg-slate-200 text-slate-600',
+  'à analyser': 'bg-amber-100 text-amber-800',
+  analysé: 'bg-sky-100 text-sky-800',
+  'à négocier': 'bg-red-100 text-red-800',
+  faible: 'bg-slate-100 text-slate-700',
+  moyen: 'bg-amber-100 text-amber-800',
+  élevé: 'bg-orange-100 text-orange-800',
+  critique: 'bg-red-100 text-red-800',
+  attention: 'bg-amber-100 text-amber-800',
+  info: 'bg-sky-100 text-sky-800',
+  mandataire: 'bg-indigo-100 text-indigo-800',
+  cotraitant: 'bg-slate-100 text-slate-700',
 };
 
 /** Onglet de la fiche contrat correspondant à chaque registre. */
@@ -193,6 +347,17 @@ export const TAB_FOR_ENTITY: Record<string, string> = {
   compensation_events: 'ce',
   correspondence: 'echanges',
   milestones: 'planning',
+  programmes: 'planning',
+  schedule_imports: 'planning',
+  wbs_items: 'planning',
+  submittals: 'visas',
+  amendments: 'finances',
+  payments: 'finances',
+  stakeholders: 'organisation',
+  group_members: 'organisation',
+  raci_items: 'organisation',
+  communication_rules: 'organisation',
+  review_items: 'revue',
 };
 
 export const ENTITY_LABELS: Record<string, string> = {
@@ -202,4 +367,15 @@ export const ENTITY_LABELS: Record<string, string> = {
   compensation_events: 'Compensation Event',
   correspondence: 'Échange',
   milestones: 'Jalon',
+  programmes: 'Programme',
+  schedule_imports: 'Planning importé',
+  wbs_items: 'Élément WBS',
+  submittals: 'Visa',
+  amendments: 'Avenant',
+  payments: 'Situation',
+  stakeholders: 'Intervenant',
+  group_members: 'Membre du groupement',
+  raci_items: 'Activité RACI',
+  communication_rules: 'Règle de communication',
+  review_items: 'Point de revue',
 };

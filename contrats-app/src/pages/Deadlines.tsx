@@ -13,6 +13,9 @@ const KIND_COLORS: Record<string, string> = {
   compensation_event: 'bg-indigo-100 text-indigo-900',
   correspondence: 'bg-sky-100 text-sky-900',
   milestone: 'bg-emerald-100 text-emerald-900',
+  programme: 'bg-violet-100 text-violet-900',
+  visa: 'bg-orange-100 text-orange-900',
+  paiement: 'bg-rose-100 text-rose-900',
 };
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

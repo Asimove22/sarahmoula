@@ -44,3 +44,9 @@ export function relativeDays(iso: string) {
   if (n > 0) return `dans ${n} j`;
   return `retard ${-n} j`;
 }
+
+export function addDaysIso(iso: string, days: number) {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}

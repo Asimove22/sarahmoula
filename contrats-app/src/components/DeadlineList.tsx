@@ -6,7 +6,7 @@ import { daysFromToday, fmtDate, relativeDays } from '../format';
 import { Empty } from './ui';
 
 export const deadlineLink = (d: Rec) =>
-  `/contrats/${d.contract_id}?tab=${TAB_FOR_ENTITY[d.entity]}${d.entity === 'contracts' ? '' : `&open=${d.entity_id}`}`;
+  `/contrats/${d.contract_id}?tab=${TAB_FOR_ENTITY[d.entity]}${d.entity === 'contracts' ? '' : `&open=${d.entity_id}&e=${d.entity}`}`;
 
 function tone(d: Rec) {
   const n = daysFromToday(d.date);

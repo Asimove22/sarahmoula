@@ -5,7 +5,16 @@ import { Empty, toastError } from '../components/ui';
 import { ENTITY_LABELS, TAB_FOR_ENTITY } from '../schemas';
 
 const link = (r: Rec) =>
-  r.kind === 'contracts' ? `/contrats/${r.id}` : `/contrats/${r.contract_id}?tab=${TAB_FOR_ENTITY[r.kind]}${r.kind === 'documents' ? '' : `&open=${r.id}`}`;
+  r.kind === 'contracts' ? `/contrats/${r.id}` : `/contrats/${r.contract_id}?tab=${TAB_FOR_ENTITY[r.kind]}${r.kind === 'documents' ? '' : `&open=${r.id}&e=${r.kind}`}`;
+
+/** Met en évidence les mots trouvés, entourés de ⟦ ⟧ par le serveur. */
+function Excerpt({ text }: { text: string }) {
+  return (
+    <span className="block text-xs text-slate-500">
+      {text.split(/(⟦[^⟧]*⟧)/).map((part, i) => (part.startsWith('⟦') ? <mark key={i} className="rounded bg-yellow-100 px-0.5">{part.slice(1, -1)}</mark> : part))}
+    </span>
+  );
+}
 
 export function Search() {
   const [params, setParams] = useSearchParams();
@@ -36,7 +45,7 @@ export function Search() {
         }}
         className="flex gap-2"
       >
-        <input autoFocus className="input max-w-lg" placeholder="Référence, objet, cocontractant, nom de fichier, texte d'un email…" value={input} onChange={(e) => setInput(e.target.value)} />
+        <input autoFocus className="input max-w-lg" placeholder="Référence, objet, clause, texte d’un PDF, d’un Word ou d’un email…" value={input} onChange={(e) => setInput(e.target.value)} />
         <button className="btn-primary">Rechercher</button>
       </form>
       {results && groups.length === 0 && <Empty>Aucun résultat pour « {q} ».</Empty>}
@@ -51,6 +60,7 @@ export function Search() {
                 <Link to={link(r)} className="block px-1 py-1.5 hover:bg-slate-50">
                   <span className="text-sm text-indigo-700">{r.title}</span>
                   {r.subtitle && <span className="ml-2 text-xs text-slate-400">{r.subtitle}</span>}
+                  {r.excerpt && <Excerpt text={r.excerpt} />}
                 </Link>
                 {kind === 'documents' && (
                   <a className="ml-1 text-xs text-slate-500 underline" href={`/api/documents/${r.id}/file`} target="_blank" rel="noreferrer">

@@ -8,6 +8,7 @@ import { Contracts } from './pages/Contracts';
 import { ContractDetail } from './pages/ContractDetail';
 import { Deadlines } from './pages/Deadlines';
 import { Search } from './pages/Search';
+import { Settings } from './pages/Settings';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="contrats/:id" element={<ContractDetail />} />
           <Route path="echeances" element={<Deadlines />} />
           <Route path="recherche" element={<Search />} />
+          <Route path="parametres" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

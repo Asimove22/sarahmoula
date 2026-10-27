@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertOctagon, CalendarPlus, FileText, Files, Mail, ShieldAlert, Zap } from 'lucide-react';
+import { AlertOctagon, CalendarPlus, FileText, Files, Mail, ShieldAlert, Stamp, Zap } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { DeadlineList } from '../components/DeadlineList';
+import { Insights } from '../components/Insights';
 import { Stat, toastError } from '../components/ui';
 import { ENTITY_LABELS } from '../schemas';
 import { fmtDateTime } from '../format';
@@ -27,16 +28,27 @@ export function Dashboard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <Stat label="Contrats actifs" value={s.active_contracts} icon={<FileText size={18} />} />
         <Stat label="Échéances dépassées" value={s.overdue} tone={s.overdue ? 'red' : 'emerald'} icon={<AlertOctagon size={18} />} />
         <Stat label="Early Warnings ouverts" value={s.open_early_warnings} tone={s.open_early_warnings ? 'amber' : 'slate'} icon={<ShieldAlert size={18} />} />
         <Stat label="Compensation Events en cours" value={s.open_compensation_events} tone="indigo" icon={<Zap size={18} />} />
         <Stat label="Réponses attendues" value={s.pending_replies} tone={s.pending_replies ? 'amber' : 'slate'} icon={<Mail size={18} />} />
+        <Stat label="Visas en attente" value={s.pending_visas} icon={<Stamp size={18} />} />
         <Stat label="Documents archivés" value={s.documents} icon={<Files size={18} />} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section className="card p-4">
+        <h2 className="mb-1 font-semibold">
+          Points d’attention{' '}
+          <span className="text-sm font-normal text-slate-500">
+            ({data.insights.filter((i: Rec) => i.level === 'critique').length} critiques, {data.insights.filter((i: Rec) => i.level === 'attention').length} à surveiller)
+          </span>
+        </h2>
+        <Insights items={data.insights} limit={10} />
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="card p-4">
           <h2 className="mb-2 font-semibold text-red-700">En retard ({data.overdue.length})</h2>
           <DeadlineList items={data.overdue} empty="Rien en retard." />
