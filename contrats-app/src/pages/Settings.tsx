@@ -293,9 +293,15 @@ function OllamaStatus({ model, onUse }: { model: string; onUse: (m: string) => v
             </span>
           </div>
           {p?.error && p.model === String(model).trim().toLowerCase().replace(/\s+/g, '') && <p className="text-xs text-red-700">{p.error}</p>}
-          <button className="btn-primary" onClick={install}>
-            <Download size={16} /> {t('Installer le modèle {model} (≈ 4,7 Go)', { model })}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" onClick={install}>
+              <Download size={16} /> {t('Installer le modèle {model} (≈ 4,7 Go)', { model })}
+            </button>
+            {/* Ou se contenter d'un modèle déjà présent, sans téléchargement. */}
+            {o.models.map((m: string) => (
+              <button key={m} className="btn-secondary" onClick={() => onUse(m)}>{t('Utiliser {model}', { model: m })}</button>
+            ))}
+          </div>
         </div>
       )}
       <button className="btn-ghost !px-0 text-xs" onClick={load}><RefreshCw size={13} /> {t('Vérifier à nouveau')}</button>
