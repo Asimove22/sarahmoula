@@ -75,8 +75,8 @@ export function AiSwitch() {
     ? ''
     : status.ollama.ok
       ? status.ollama.model_present
-        ? t('Ollama prêt ({model})', { model: status.ollama.model })
-        : t('Ollama démarré, mais le modèle {model} n’est pas installé : ollama pull {model}', { model: status.ollama.model })
+        ? t('Ollama prêt ({model})', { model: status.ollama.model_used })
+        : t('Ollama démarré, mais le modèle {model} n’est pas installé : Paramètres → « Installer le modèle »', { model: status.ollama.model })
       : t('Ollama ne répond pas sur {url}', { url: status.ollama.url });
   const options = [
     { id: 'ollama', label: t('Locale'), icon: HardDrive, state: ollamaState, title: ollamaTitle },

@@ -205,3 +205,13 @@ test('interface anglaise : points d’attention et échéances traduits', async 
   const fr = await api('GET', `/api/insights?contract_id=${c.id}`);
   assert.ok(fr.some((i) => /^Retenue de garantie de 7 %/.test(i.title)));
 });
+
+test('Ollama : nom de modèle tolérant et variante de la même famille', async () => {
+  const { pickOllamaModel } = await import('./ai.js');
+  assert.deepEqual(pickOllamaModel('qwen2.5:7b', ['qwen2.5:7b', 'llama3:8b']), { name: 'qwen2.5:7b', exact: true });
+  assert.deepEqual(pickOllamaModel('Qwen 2.5:7B', ['qwen2.5:7b']), { name: 'qwen2.5:7b', exact: true });
+  assert.deepEqual(pickOllamaModel('qwen2.5', ['qwen2.5:latest']), { name: 'qwen2.5:latest', exact: true });
+  assert.deepEqual(pickOllamaModel('qwen2.5:7b', ['qwen2.5:14b', 'qwen2.5:latest']), { name: 'qwen2.5:latest', exact: false });
+  assert.equal(pickOllamaModel('qwen2.5:7b', ['llama3:8b']), null);
+  assert.equal(pickOllamaModel('qwen2.5:7b', []), null);
+});

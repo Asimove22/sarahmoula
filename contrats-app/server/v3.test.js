@@ -30,6 +30,8 @@ before(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
+      // Comme le vrai Ollama : liste des modèles installés.
+      if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'qwen2.5:7b' }] }));
       aiCalls += 1;
       const payload = JSON.parse(body);
       const prompt = payload.messages[1].content;
@@ -225,5 +227,5 @@ test('sauvegarde automatique quotidienne de la base', () => {
 test('état de l’application', async () => {
   const h = await api('GET', '/api/health');
   assert.equal(h.app, 'contrats-app');
-  assert.equal(h.version, '3.0.0');
+  assert.equal(h.version, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
 });

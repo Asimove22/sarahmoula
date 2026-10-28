@@ -48,6 +48,8 @@ before(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
+      // Comme le vrai Ollama : liste des modèles installés.
+      if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'qwen2.5:7b' }] }));
       const payload = JSON.parse(body);
       ollamaRequests.push(payload);
       const props = payload.format?.properties ?? {};

@@ -79,8 +79,9 @@ Si l'icône ne fait rien, lance `Lancer.bat` : il affiche les messages d'erreur,
 
 **IA locale (recommandée pour démarrer, gratuite, rien ne sort de ton PC)** :
 1. Installe Ollama depuis <https://ollama.com/download>.
-2. Dans l'invite de commandes : `ollama pull qwen2.5:7b` (≈ 5 Go ; prévoir 16 Go de RAM).
-3. Dans l'application : **Paramètres → Tester Ollama**.
+2. Lance Ollama (son icône apparaît près de l'horloge Windows).
+3. Dans l'application : **Paramètres → IA locale (Ollama)**. Le cadre d'état indique si Ollama répond et si le modèle est installé. S'il manque, clique sur **Installer le modèle** (≈ 4,7 Go, barre de progression ; prévoir 16 Go de RAM). Équivalent en ligne de commande : `ollama pull qwen2.5:7b`.
+4. **Tester Ollama** : le message indique le modèle réellement utilisé. Si seule une autre taille du même modèle est installée (ex. `qwen2.5:14b`), elle est utilisée automatiquement.
 
 **Claude (meilleure qualité, payant à l'usage)** :
 1. Crée une clé sur <https://console.anthropic.com/settings/keys>.

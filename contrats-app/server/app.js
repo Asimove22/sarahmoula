@@ -11,7 +11,7 @@ import { extractDocumentText, indexDocument, unindexDocument, ftsQuery } from '.
 import { parseSchedule } from './schedule.js';
 import { buildLetter, listTemplates, renderDocx, TEMPLATES } from './letters.js';
 import { derive, extraDeadlines, financeSummary, computeInsights, reviewTemplateFor } from './rules.js';
-import { AI_DEFAULTS, aiStatus, askContract, effectiveMode, draftLetter, reviewContract, testProvider, triageCorrespondence } from './ai.js';
+import { AI_DEFAULTS, aiStatus, askContract, effectiveMode, draftLetter, reviewContract, startOllamaPull, testProvider, triageCorrespondence } from './ai.js';
 import { createOcr, needsOcr } from './ocr.js';
 import { createReviewWatch, acceptUpdate } from './review-watch.js';
 import { KINDS, buildExport, buildTemplate, prepareImport } from './imports.js';
@@ -747,6 +747,11 @@ export function createApp({ db, dataDir, onShutdown }) {
     return aiStatus(db);
   }));
   app.post('/api/ai/test', h((req) => testProvider(db, req.body.provider === 'claude' ? 'claude' : 'ollama')));
+  // Télécharge le modèle local depuis l'application (équivalent de « ollama pull »).
+  app.post('/api/ai/ollama/pull', h(async (req) => {
+    await startOllamaPull(db, req.body?.model);
+    return aiStatus(db);
+  }));
 
   const aiDocuments = (contractId, ids, forReview) => {
     let docs = db.prepare("SELECT id, title, category, content_text FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status IN ('ok', 'ocr')").all(contractId);

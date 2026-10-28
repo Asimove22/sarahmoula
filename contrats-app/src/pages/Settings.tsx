@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Cloud, HardDrive, PlugZap, Power, Save, ScanText } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Cloud, Download, HardDrive, PlugZap, Power, RefreshCw, Save, ScanText, TriangleAlert } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { toast, toastError } from '../components/ui';
 import { t } from '../i18n';
@@ -50,7 +50,7 @@ export function Settings() {
     try {
       await save();
       const out = await api.post('/api/ai/test', { provider });
-      toast(`Connexion ${provider === 'claude' ? t('Claude') : t('Ollama')} réussie (réponse : ${out.reply})`);
+      toast(t('Connexion {name} réussie (modèle {model}, réponse : {reply})', { name: provider === 'claude' ? 'Claude' : 'Ollama', model: out.model ?? '', reply: out.reply }));
     } catch (e) {
       toastError(e);
     } finally {
@@ -64,7 +64,7 @@ export function Settings() {
       {props.multiline ? (
         <textarea className="input min-h-[70px]" value={s[k] ?? ''} onChange={(e) => set(k, e.target.value)} />
       ) : (
-        <input className="input" value={s[k] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={(e) => set(k, e.target.value)} />
+        <input className="input" value={s[k] ?? ''} list={props.list} placeholder={props.placeholder && t(props.placeholder)} onChange={(e) => set(k, e.target.value)} />
       )}
     </label>
   );
@@ -96,8 +96,9 @@ export function Settings() {
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {field('ollama_url', 'Adresse Ollama')}
-          {field('ollama_model', 'Modèle', { placeholder: 'qwen2.5:7b' })}
+          {field('ollama_model', 'Modèle', { placeholder: 'qwen2.5:7b', list: 'ollama-models' })}
         </div>
+        <OllamaStatus model={s.ollama_model} onUse={(m) => save({ ollama_model: m })} />
         <button className="btn-secondary" onClick={() => test('ollama')} disabled={testing !== ''}>
           <PlugZap size={16} /> {testing === 'ollama' ? t('Test…') : t('Tester Ollama')}
         </button>
@@ -208,6 +209,96 @@ export function Settings() {
           <Power size={16} /> {t('Arrêter l’application')}
         </button>
       </section>
+    </div>
+  );
+}
+
+/** État d'Ollama : joignable ? modèle installé ? Téléchargement du modèle depuis l'application. */
+function OllamaStatus({ model, onUse }: { model: string; onUse: (m: string) => void }) {
+  const [st, setSt] = useState<Rec | null>(null);
+  const load = () => api.get<Rec>('/api/ai/status').then(setSt).catch(() => {});
+  const pulling = st?.ollama.pull && !st.ollama.pull.done;
+  useEffect(() => {
+    load();
+  }, [model]);
+  useEffect(() => {
+    if (!pulling) return;
+    const id = setInterval(load, 1500);
+    return () => clearInterval(id);
+  }, [pulling]);
+  // Message de fin seulement pour un téléchargement suivi sur cette page (pas pour un ancien).
+  const wasPulling = useRef(false);
+  useEffect(() => {
+    const p = st?.ollama.pull;
+    if (wasPulling.current && p?.done) toast(p.error ?? t('Modèle {model} installé : l’IA locale est prête.', { model: p.model }), p.error ? 'error' : 'ok');
+    wasPulling.current = Boolean(pulling);
+  }, [pulling, st?.ollama.pull?.done]);
+
+  const install = async () => {
+    try {
+      setSt(await api.post<Rec>('/api/ai/ollama/pull', { model }));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  if (!st) return null;
+  const o = st.ollama;
+  const p = o.pull;
+  const pct = p?.total ? Math.round((p.completed / p.total) * 100) : 0;
+  const gb = (n: number) => (n / 1e9).toFixed(1);
+
+  return (
+    <div className="space-y-2 rounded-md border border-slate-200 p-3 text-sm">
+      <datalist id="ollama-models">{o.models.map((m: string) => <option key={m} value={m} />)}</datalist>
+      {!o.ok ? (
+        <div className="flex items-start gap-2 text-red-700">
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+          <div>
+            {t('Ollama ne répond pas sur {url}', { url: o.url })}. {t('Installez-le depuis ollama.com/download, puis lancez-le (icône Ollama près de l’horloge Windows).')}
+          </div>
+        </div>
+      ) : pulling ? (
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-slate-600">
+            <span>{t('Téléchargement de {model}…', { model: p.model })} {p.status}</span>
+            <span className="tabular-nums">{p.total ? `${gb(p.completed)} / ${gb(p.total)} Go · ${pct} %` : ''}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded bg-slate-100">
+            <div className="h-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-slate-500">{t('Vous pouvez continuer à utiliser l’application pendant le téléchargement.')}</p>
+        </div>
+      ) : o.model_exact ? (
+        <div className="flex items-center gap-2 text-emerald-700">
+          <CheckCircle2 size={16} /> {t('IA locale prête : modèle {model} installé.', { model: o.model_used })}
+        </div>
+      ) : o.model_present ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 text-amber-700">
+            <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+            <span>{t('« {wanted} » n’est pas installé ; la variante « {used} » est utilisée à sa place.', { wanted: model, used: o.model_used })}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-secondary" onClick={() => onUse(o.model_used)}>{t('Utiliser {model}', { model: o.model_used })}</button>
+            <button className="btn-secondary" onClick={install}><Download size={16} /> {t('Installer {model}', { model })}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 text-amber-700">
+            <TriangleAlert size={16} className="mt-0.5 shrink-0" />
+            <span>
+              {t('Ollama fonctionne, mais le modèle « {model} » n’est pas installé.', { model })}{' '}
+              {o.models.length ? t('Modèles présents : {list}.', { list: o.models.join(', ') }) : t('Aucun modèle installé.')}
+            </span>
+          </div>
+          {p?.error && p.model === String(model).trim().toLowerCase().replace(/\s+/g, '') && <p className="text-xs text-red-700">{p.error}</p>}
+          <button className="btn-primary" onClick={install}>
+            <Download size={16} /> {t('Installer le modèle {model} (≈ 4,7 Go)', { model })}
+          </button>
+        </div>
+      )}
+      <button className="btn-ghost !px-0 text-xs" onClick={load}><RefreshCw size={13} /> {t('Vérifier à nouveau')}</button>
     </div>
   );
 }

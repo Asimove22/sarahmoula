@@ -38,34 +38,129 @@ export function resolveProvider(db, contract) {
   throw new AiError('L’assistant IA est désactivé (sélecteur IA en haut de l’écran).');
 }
 
+const ollamaBase = (s) => s.ollama_url.replace(/\/$/, '');
+
+/** Modèles installés dans Ollama (null si Ollama ne répond pas). */
+async function ollamaModels(s, timeout = 1500) {
+  try {
+    const res = await fetch(`${ollamaBase(s)}/api/tags`, { signal: AbortSignal.timeout(timeout) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.models ?? []).map((m) => m.name);
+  } catch {
+    return null;
+  }
+}
+
+// « Qwen 2.5:7b » ou « qwen2.5 » désignent le même modèle que « qwen2.5:7b » / « qwen2.5:latest ».
+const normalizeModel = (name) => String(name ?? '').trim().toLowerCase().replace(/\s+/g, '');
+const withTag = (name) => (name.includes(':') ? name : `${name}:latest`);
+
+/**
+ * Modèle réellement utilisable : nom exact, sinon même nom écrit autrement, sinon une autre taille
+ * de la même famille (ex. qwen2.5:latest à la place de qwen2.5:7b). null si rien ne convient.
+ */
+export function pickOllamaModel(wanted, installed) {
+  if (!installed?.length) return null;
+  const w = withTag(normalizeModel(wanted));
+  const exact = installed.find((m) => withTag(normalizeModel(m)) === w);
+  if (exact) return { name: exact, exact: true };
+  const family = w.split(':')[0];
+  const same = installed.filter((m) => normalizeModel(m).split(':')[0] === family);
+  if (same.length) return { name: same.find((m) => m.endsWith(':latest')) ?? same[0], exact: false };
+  return null;
+}
+
+// Téléchargement d'un modèle lancé depuis l'application (un seul à la fois).
+let pull = null;
+
+/** Lance « ollama pull » via l'API d'Ollama ; la progression est lisible dans aiStatus(). */
+export async function startOllamaPull(db, model) {
+  const s = { ...AI_DEFAULTS, ...getSettings(db) };
+  const name = normalizeModel(model || s.ollama_model);
+  if (!name) throw new AiError('Indiquez le modèle à installer.');
+  if (pull && !pull.done) return pull;
+  if ((await ollamaModels(s)) === null) throw new AiError(`Ollama ne répond pas sur ${s.ollama_url}. Installez-le (ollama.com/download) et démarrez-le, puis réessayez.`, 503);
+  pull = { model: name, status: 'démarrage', completed: 0, total: 0, done: false, error: null };
+  const state = pull;
+  (async () => {
+    try {
+      const res = await fetch(`${ollamaBase(s)}/api/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: name, stream: true }),
+      });
+      if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
+      const decoder = new TextDecoder();
+      let buf = '';
+      for await (const chunk of res.body) {
+        buf += decoder.decode(chunk, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (!line) continue;
+          const ev = JSON.parse(line);
+          if (ev.error) throw new Error(ev.error);
+          state.status = ev.status ?? state.status;
+          if (ev.total) {
+            state.total = ev.total;
+            state.completed = ev.completed ?? 0;
+          }
+        }
+      }
+      if (state.status !== 'success') throw new Error('téléchargement interrompu');
+    } catch (e) {
+      state.error = /file does not exist|not found|manifest/i.test(e.message)
+        ? `Le modèle « ${name} » n’existe pas sur ollama.com. Vérifiez son nom (ex. qwen2.5:7b).`
+        : `Téléchargement impossible : ${e.message}`;
+    } finally {
+      state.done = true;
+    }
+  })();
+  return state;
+}
+
 /** État des moteurs pour le sélecteur de l'en-tête (Ollama joignable ? modèle installé ? clé Claude ?). */
 export async function aiStatus(db) {
   const s = { ...AI_DEFAULTS, ...getSettings(db) };
-  const ollama = { ok: false, model_present: false, models: [] };
-  try {
-    const res = await fetch(`${s.ollama_url.replace(/\/$/, '')}/api/tags`, { signal: AbortSignal.timeout(1500) });
-    if (res.ok) {
-      const data = await res.json();
-      ollama.ok = true;
-      ollama.models = (data.models ?? []).map((m) => m.name);
-      ollama.model_present = ollama.models.some((m) => m === s.ollama_model || m.split(':')[0] === s.ollama_model.split(':')[0]);
-    }
-  } catch {
-    // Ollama non démarré
-  }
-  return { mode: s.ai_mode, ollama: { ...ollama, url: s.ollama_url, model: s.ollama_model }, claude: { configured: Boolean(s.claude_api_key), model: s.claude_model } };
+  const models = await ollamaModels(s);
+  const picked = pickOllamaModel(s.ollama_model, models);
+  const ollama = {
+    ok: models !== null,
+    models: models ?? [],
+    // présent = utilisable : le nom exact ou une variante de la même famille (utilisée à sa place)
+    model_present: Boolean(picked),
+    model_exact: Boolean(picked?.exact),
+    model_used: picked?.name ?? null,
+  };
+  return {
+    mode: s.ai_mode,
+    ollama: { ...ollama, url: s.ollama_url, model: s.ollama_model, pull },
+    claude: { configured: Boolean(s.claude_api_key), model: s.claude_model },
+  };
 }
 
 async function complete(provider, { system, prompt, schema }) {
   const { name, settings: s } = provider;
   if (name === 'ollama') {
+    const installed = await ollamaModels(s, 5000);
+    if (installed === null) throw new AiError(`Ollama ne répond pas sur ${s.ollama_url}. Lancez Ollama (icône Ollama ou « ollama serve ») ou vérifiez l’adresse dans Paramètres.`, 503);
+    const picked = pickOllamaModel(s.ollama_model, installed);
+    if (!picked) {
+      throw new AiError(
+        `Modèle « ${s.ollama_model} » absent d’Ollama${installed.length ? ` (modèles installés : ${installed.join(', ')})` : ' (aucun modèle installé)'}. `
+          + `Paramètres → IA locale → « Installer le modèle », ou dans un terminal : ollama pull ${normalizeModel(s.ollama_model)}`,
+        503,
+      );
+    }
     let res;
     try {
       res = await fetch(`${s.ollama_url.replace(/\/$/, '')}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: s.ollama_model,
+          model: picked.name,
           stream: false,
           format: schema ?? undefined,
           options: { num_ctx: 16384, temperature: 0.2 },
@@ -81,7 +176,7 @@ async function complete(provider, { system, prompt, schema }) {
     }
     if (!res.ok) {
       const detail = await res.text();
-      if (res.status === 404) throw new AiError(`Modèle « ${s.ollama_model} » absent : exécutez « ollama pull ${s.ollama_model} ».`, 503);
+      if (res.status === 404) throw new AiError(`Modèle « ${picked.name} » absent : Paramètres → IA locale → « Installer le modèle », ou « ollama pull ${picked.name} ».`, 503);
       throw new AiError(`Erreur Ollama ${res.status} : ${detail.slice(0, 300)}`, 502);
     }
     const data = await res.json();
@@ -371,5 +466,6 @@ export async function testProvider(db, which) {
   const s = { ...AI_DEFAULTS, ...getSettings(db) };
   if (which === 'claude' && !s.claude_api_key) throw new AiError('Aucune clé API Claude enregistrée.');
   const text = await complete({ name: which, settings: s }, { system: 'Réponds uniquement par OK.', prompt: 'Test de connexion.' });
-  return { ok: true, reply: text.trim().slice(0, 50) };
+  const used = which === 'ollama' ? pickOllamaModel(s.ollama_model, await ollamaModels(s))?.name : s.claude_model;
+  return { ok: true, reply: text.trim().slice(0, 50), model: used };
 }
