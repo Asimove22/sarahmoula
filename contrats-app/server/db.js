@@ -244,6 +244,33 @@ const MIGRATIONS = [
     status TEXT NOT NULL DEFAULT 'proposée', decided_at TEXT, ${TIMESTAMPS});
   CREATE INDEX idx_rupd_contract ON review_updates(contract_id, status);
   `,
+  // V4 : moteur d'IA par contrat, droit des marchés publics (CCAG 2021, Code de la commande publique).
+  `
+  ALTER TABLE contracts ADD COLUMN ai_provider TEXT;
+  UPDATE contracts SET ai_provider = 'claude' WHERE ai_allow_cloud = 1;
+  ALTER TABLE contracts ADD COLUMN buyer_type TEXT;
+  ALTER TABLE contracts ADD COLUMN ccag TEXT;
+  ALTER TABLE contracts ADD COLUMN procedure TEXT;
+  ALTER TABLE contracts ADD COLUMN notification_date TEXT;
+  ALTER TABLE contracts ADD COLUMN amount_ttc_rate REAL DEFAULT 20;
+  ALTER TABLE contracts ADD COLUMN final_account_sent_date TEXT;
+  ALTER TABLE contracts ADD COLUMN dgd_notified_date TEXT;
+  ALTER TABLE contracts ADD COLUMN dgd_signed_date TEXT;
+  ALTER TABLE contracts ADD COLUMN dgd_reserves INTEGER DEFAULT 0;
+  CREATE TABLE service_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, ${OWNED}, number TEXT, title TEXT NOT NULL,
+    kind TEXT, issued_date TEXT, received_date TEXT, effect_date TEXT, amount REAL, extra_days INTEGER,
+    reserves_due TEXT, reserves_date TEXT, reserves_text TEXT, status TEXT NOT NULL DEFAULT 'reçu', notes TEXT, ${TIMESTAMPS});
+  CREATE TABLE claims (id INTEGER PRIMARY KEY AUTOINCREMENT, ${OWNED}, number TEXT, title TEXT NOT NULL,
+    dispute_date TEXT, memo_due TEXT, memo_sent_date TEXT, amount_claimed REAL, extra_days_claimed INTEGER,
+    response_due TEXT, response_date TEXT, decision TEXT, amount_obtained REAL, next_step TEXT,
+    status TEXT NOT NULL DEFAULT 'différend', notes TEXT, ${TIMESTAMPS});
+  CREATE TABLE subcontractors (id INTEGER PRIMARY KEY AUTOINCREMENT, ${OWNED}, company TEXT NOT NULL,
+    scope TEXT, amount_ht REAL, direct_payment INTEGER, dc4_date TEXT, approval_date TEXT,
+    status TEXT NOT NULL DEFAULT 'en cours d’agrément', contact TEXT, notes TEXT, ${TIMESTAMPS});
+  CREATE INDEX idx_os_contract ON service_orders(contract_id);
+  CREATE INDEX idx_claims_contract ON claims(contract_id);
+  CREATE INDEX idx_sub_contract2 ON subcontractors(contract_id);
+  `,
 ];
 
 export function openDatabase(dataDir) {

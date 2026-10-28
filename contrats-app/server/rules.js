@@ -1,12 +1,16 @@
 // Règles métier V2 : dates dérivées, synthèse financière et points d'attention proactifs.
 import { addDays, ceDerived, today } from './deadlines.js';
+import { getSettings } from './db.js';
+import { legalPaymentDays, publicDeadlines, publicInsights, publicReviewTemplate } from './legal.js';
 
 const NEC = new Set(['NEC3', 'NEC4']);
 const FR = new Set(['FR_PUBLIC', 'FR_PRIVE']);
 export const CLOSED_CONTRACT = ['clôturé', 'résilié', 'archivé'];
 const CE_OPEN = (ce) => !['implémenté', 'rejeté', 'retiré'].includes(ce.status);
 
-export const paymentDue = (p, c) => p.due_date || addDays(p.submitted_date, c.payment_days ?? (NEC.has(c.framework) ? 21 : 30));
+// Échéance : saisie, sinon délai du contrat, sinon délai légal (marchés publics) ou usuel (21 j en NEC).
+export const paymentDue = (p, c) =>
+  p.due_date || addDays(p.submitted_date, c.payment_days ?? (NEC.has(c.framework) ? 21 : c.framework === 'FR_PUBLIC' ? legalPaymentDays(c) : 30));
 export const visaDue = (s, c) => s.visa_due || addDays(s.submitted_date, c.visa_days ?? 15);
 export const programmeReplyDue = (p, c) => (p.submitted_date && !p.pm_response_date ? addDays(p.submitted_date, (c.pm_programme_reply_weeks ?? 2) * 7) : null);
 
@@ -55,7 +59,7 @@ export function extraDeadlines(db, contracts) {
       push(c, { ...base('payments', p.id), kind: 'paiement', date: paymentDue(p, c), title: `Paiement attendu : ${p.number ?? 'situation'}${p.period ? ` (${p.period})` : ''}`, critical: true });
     }
   }
-  return items;
+  return [...items, ...publicDeadlines(db, contracts)];
 }
 
 const sum = (rows, f) => rows.reduce((n, r) => n + (Number(f(r)) || 0), 0);
@@ -96,7 +100,7 @@ const REQUIRED_DOCS = {
   ALL: [['Contrat', 'Acte d’engagement']],
   NEC3: [['Contract Data', 'Contract Data / CCAP'], ['Scope / Works Information', 'CCTP', 'Annexe']],
   NEC4: [['Contract Data', 'Contract Data / CCAP'], ['Scope / Works Information', 'CCTP', 'Annexe']],
-  FR_PUBLIC: [['CCAP', 'Contract Data / CCAP'], ['CCTP'], ['CCAG Travaux'], ['BPU / DQE / DPGF']],
+  FR_PUBLIC: [['CCAP', 'Contract Data / CCAP'], ['CCTP'], ['CCAG Travaux', 'CCAG']],
   FR_PRIVE: [['CCAP', 'Contract Data / CCAP'], ['CCTP']],
   COMMERCIAL: [],
 };
@@ -111,6 +115,7 @@ export function computeInsights(db, { contractId } = {}) {
     : db.prepare('SELECT * FROM contracts').all();
   const out = [];
   const now = today();
+  const settings = getSettings(db);
   for (const c of contracts) {
     if (CLOSED_CONTRACT.includes(c.status)) continue;
     const add = (level, title, detail, tab, extra = {}) => out.push({ level, title, detail, tab, contract_id: c.id, contract_title: c.title, contract_reference: c.reference, ...extra });
@@ -207,6 +212,8 @@ export function computeInsights(db, { contractId } = {}) {
     if (f.ce_exposure > 0) add('info', `CE en cours chiffrés : ${Math.round(f.ce_exposure).toLocaleString('fr-FR')} ${f.currency}`, 'Montant en jeu sur les Compensation Events non encore implémentés.', 'ce');
     if (c.reception_date && FR.has(c.framework) && addDays(c.reception_date, 365) <= now && f.retention > 0) add('info', 'Garantie de parfait achèvement échue', 'Demandez la libération de la retenue de garantie (ou de la caution qui la remplace).', 'finances');
 
+    publicInsights(db, c, { add, finance: f, latestImport: imports[0], settings });
+
     if (!c.completion_date && !c.end_date) add('info', 'Aucune date d’achèvement ou de fin renseignée', 'Les alertes de délai et de préavis ne peuvent pas être calculées.', 'synthese');
   }
   const order = { critique: 0, attention: 1, info: 2 };
@@ -256,7 +263,8 @@ export const REVIEW_TEMPLATES = {
   ],
 };
 
-export function reviewTemplateFor(framework) {
-  const key = NEC.has(framework) ? 'NEC' : framework;
+export function reviewTemplateFor(contract) {
+  if (contract.framework === 'FR_PUBLIC') return publicReviewTemplate(contract);
+  const key = NEC.has(contract.framework) ? 'NEC' : contract.framework;
   return [...REVIEW_TEMPLATES.COMMON, ...(REVIEW_TEMPLATES[key] ?? [])];
 }

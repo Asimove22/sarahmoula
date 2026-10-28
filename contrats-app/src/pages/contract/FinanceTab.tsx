@@ -4,6 +4,7 @@ import { RegisterPanel } from '../../components/RegisterPanel';
 import { Badge, SubTabs, toastError } from '../../components/ui';
 import { AMENDMENT_FIELDS, PAYMENT_FIELDS } from '../../schemas';
 import { daysFromToday, fmtDate, fmtMoney, relativeDays, todayIso } from '../../format';
+import { t } from '../../i18n';
 
 export function FinanceSummary({ contract, refreshKey = 0, compact }: { contract: Rec; refreshKey?: number; compact?: boolean }) {
   const [f, setF] = useState<Rec | null>(null);
@@ -14,11 +15,11 @@ export function FinanceSummary({ contract, refreshKey = 0, compact }: { contract
   const m = (n: number) => fmtMoney(n, f.currency);
   const cards: [string, string, string?][] = [
     ['Montant initial', m(f.initial)],
-    ['Avenants signés', m(f.amendments_signed), f.amendments_pending ? `+ ${m(f.amendments_pending)} en négociation` : undefined],
-    ['CE implémentés', m(f.ce_implemented), f.ce_exposure ? `${m(f.ce_exposure)} chiffrés en cours` : undefined],
-    ['Montant actualisé', m(f.current), f.variation_percent !== null ? `${f.variation_percent >= 0 ? '+' : ''}${f.variation_percent.toFixed(1)} % · ${f.extra_days} j de délai en plus` : undefined],
+    ['Avenants signés', m(f.amendments_signed), f.amendments_pending ? t('+ {amount} en négociation', { amount: m(f.amendments_pending) }) : undefined],
+    ['CE implémentés', m(f.ce_implemented), f.ce_exposure ? t('{amount} chiffrés en cours', { amount: m(f.ce_exposure) }) : undefined],
+    ['Montant actualisé', m(f.current), f.variation_percent !== null ? `${f.variation_percent >= 0 ? '+' : ''}${f.variation_percent.toFixed(1)} % · ${t('{n} j de délai en plus', { n: f.extra_days })}` : undefined],
     ['Facturé (validé)', m(f.invoiced)],
-    ['Payé', m(f.paid), f.outstanding ? `${m(f.outstanding)} en attente` : undefined],
+    ['Payé', m(f.paid), f.outstanding ? t('{amount} en attente', { amount: m(f.outstanding) }) : undefined],
     ['Reste à facturer', m(f.remaining_to_invoice)],
     ['Retenue de garantie', m(f.retention)],
   ];
@@ -27,7 +28,7 @@ export function FinanceSummary({ contract, refreshKey = 0, compact }: { contract
       <div className={`grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
         {(compact ? [cards[3], cards[4], cards[5], cards[6]] : cards).map(([label, value, hint]) => (
           <div key={label} className="card p-3">
-            <div className="text-xs text-slate-500">{label}</div>
+            <div className="text-xs text-slate-500">{t(label)}</div>
             <div className="text-lg font-semibold tabular-nums">{value}</div>
             {hint && <div className="text-xs text-slate-400">{hint}</div>}
           </div>
@@ -36,15 +37,15 @@ export function FinanceSummary({ contract, refreshKey = 0, compact }: { contract
       {f.progress_percent !== null && (
         <div>
           <div className="mb-1 flex justify-between text-xs text-slate-500">
-            <span>Avancement financier</span>
+            <span>{t('Avancement financier')}</span>
             <span>{f.progress_percent.toFixed(1)} %</span>
           </div>
           <div className="h-2 overflow-hidden rounded bg-slate-200">
-            <div className="h-full bg-indigo-600" style={{ width: `${Math.min(f.progress_percent, 100)}%` }} />
+            <div className="h-full bg-brand-600" style={{ width: `${Math.min(f.progress_percent, 100)}%` }} />
           </div>
         </div>
       )}
-      {f.overdue_payments > 0 && <p className="text-sm font-medium text-red-600">{f.overdue_payments} paiement(s) en retard.</p>}
+      {f.overdue_payments > 0 && <p className="text-sm font-medium text-red-600">{f.overdue_payments} {t('paiement(s) en retard.')}</p>}
     </div>
   );
 }
@@ -66,7 +67,7 @@ export function FinanceTab({ contract, openId, entity, onChange }: { contract: R
         <RegisterPanel
           table="payments"
           contractId={contract.id}
-          title="Situations de travaux"
+          title={t('Situations de travaux')}
           addLabel="Nouvelle situation"
           emptyText="Enregistrez vos demandes de paiement : l’échéance est calculée avec le délai de paiement du contrat et les retards sont signalés."
           fields={PAYMENT_FIELDS}
@@ -96,6 +97,23 @@ export function FinanceTab({ contract, openId, entity, onChange }: { contract: R
                 ),
             },
             { key: 'amount_paid', label: 'Payé', render: (r) => m(r.amount_paid), className: 'whitespace-nowrap text-right' },
+            ...(contract.framework === 'FR_PUBLIC'
+              ? [
+                  {
+                    key: 'late_interest',
+                    label: 'Intérêts moratoires',
+                    className: 'whitespace-nowrap text-right',
+                    render: (r: Rec) =>
+                      r.late_interest ? (
+                        <span className="text-red-700" title={`${r.late_interest.days} j · ${r.late_interest.rate ?? '?'} % + 40 €`}>
+                          {r.late_interest.interest != null ? m(r.late_interest.interest + r.late_interest.flat_fee) : t('? (taux BCE)')}
+                        </span>
+                      ) : (
+                        '—'
+                      ),
+                  },
+                ]
+              : []),
             { key: 'status', label: 'Statut', render: (r) => <Badge value={r.status} /> },
           ]}
         />
@@ -103,7 +121,7 @@ export function FinanceTab({ contract, openId, entity, onChange }: { contract: R
         <RegisterPanel
           table="amendments"
           contractId={contract.id}
-          title="Avenants"
+          title={t('Avenants')}
           addLabel="Nouvel avenant"
           emptyText="Aucun avenant. Archivez aussi le document signé dans la GED (catégorie « Avenant »)."
           fields={AMENDMENT_FIELDS}

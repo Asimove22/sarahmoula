@@ -1,7 +1,13 @@
-# Gestion contractuelle et documentaire
+# Clausia – gestion contractuelle et documentaire
 
 Application **personnelle et locale** pour gérer le cycle de vie de tes contrats (NEC3/NEC4 et contrats de droit français) :
 
+- **Nouveautés V4** :
+  - **Identité Clausia** : logo original (parallélogramme rouge à bandes obliques et « § »), palette rouge et anthracite, nouvelle icône du Bureau.
+  - **Français / anglais** : bouton **FR | EN** en haut à droite. Interface, points d'attention, échéances, dates et montants passent en anglais ; les courriers NEC sont générés en anglais (choix de la langue dans la fenêtre du courrier). Les courriers et le référentiel des marchés publics français restent en français.
+  - **Droit français des marchés publics** : onglet **Marché public** (contrats « Marché public (FR) ») avec le référentiel applicable (Code de la commande publique et CCAG 2021 Travaux, FCS, MOE, PI, TIC, MI), **ordres de service** (réserves sous 15 jours), **réclamations** (mémoire sous 2 mois, silence de l'acheteur), **sous-traitants** (DC4, agrément, paiement direct ≥ 600 € TTC), **réception et décompte** (projet de décompte final, DGD sous 30 jours, retenue de garantie). Délai de paiement légal selon l'acheteur (30, 50 ou 60 jours), **intérêts moratoires** (taux BCE + 8 points, indemnité de 40 €), alertes sur la retenue > 5 %, les avenants > 15 % / 10 % ou > 50 %, l'avance, les pénalités théoriques. Les règles marquées « à vérifier dans le CCAP » dépendent de ton marché.
+  - **Bascule rapide de l'IA** : sélecteur **Locale / Claude / Off** dans la barre rouge, avec voyant d'état (vert = prêt). Un contrat peut imposer son moteur (ex. « toujours en local » pour un marché confidentiel).
+  - **KPI & graphiques** : avancement financier par contrat, risques de la revue par thème, EW et CE par mois, échéances à venir, statuts de visa, glissement des plannings ; filtres par contrat et par thématique, info-bulles et tableau des données sous chaque graphique.
 - **Contrats** : fiche complète (parties, montant, dates, préavis, reconduction tacite, réception, conditions financières, délais NEC et de visa).
 - **GED** : dépôt par glisser-déposer du contrat, de l'acte d'engagement, CCAP, CCTP, CCAG Travaux, Contract Data, annexes, avenants, convention de groupement, BPU/DQE/DPGF, WBS, RACI, matrice de communication, revue de contrat… avec **versions**, empreinte SHA-256 et corbeille. **Recherche plein texte** dans le contenu des PDF, Word, Excel et emails (insensible aux accents). **OCR** des PDF scannés et des photos (français et anglais, hors ligne).
 - **Revue de contrat** : **import de ta revue Excel existante** (colonnes reconnues automatiquement, aperçu avant import), check-list type par cadre (commune, NEC, CCAG Travaux, NF P03-001), **analyse IA des pièces**, export Excel mis en forme.
@@ -20,7 +26,7 @@ Application **personnelle et locale** pour gérer le cycle de vie de tes contrat
 - **Tableau de bord et échéancier** : retards, échéances à 30 jours, calendrier mensuel, **export vers Outlook / Google Agenda** (`.ics` avec rappel 3 jours avant).
 - **Recherche globale**, **historique** de toutes les actions, **exports Excel** (CSV) de chaque registre.
 
-Tout reste sur ton PC : l'application n'écoute que `localhost`. **Seule exception, que tu actives toi-même** : pour un contrat où tu coches « Autoriser l'IA cloud », les extraits utiles des documents sont envoyés à l'API Claude d'Anthropic. Par défaut, l'IA tourne en local avec Ollama.
+Tout reste sur ton PC : l'application n'écoute que `localhost`. **Seule exception, que tu actives toi-même** : quand **Claude** est sélectionné dans la barre du haut, les extraits utiles des documents sont envoyés à l'API Claude d'Anthropic (sauf pour les contrats réglés sur « toujours en local »). Par défaut, l'IA tourne en local avec Ollama.
 
 ---
 
@@ -79,7 +85,7 @@ Si l'icône ne fait rien, lance `Lancer.bat` : il affiche les messages d'erreur,
 **Claude (meilleure qualité, payant à l'usage)** :
 1. Crée une clé sur <https://console.anthropic.com/settings/keys>.
 2. **Paramètres** : colle la clé, choisis le modèle (Claude Opus 5.5 par défaut), puis **Tester Claude**.
-3. Dans chaque contrat concerné : **Modifier → Autoriser l'IA cloud (Claude)**. Les autres contrats restent en IA locale.
+3. Choisis **Claude** dans le sélecteur **IA** de la barre rouge (ou **Locale**, ou **Off**). Pour un contrat confidentiel : **Modifier → Moteur d'IA pour ce contrat → Toujours en local**.
 
 L'IA propose, tu décides : rien de ce qu'elle produit n'est enregistré sans ta validation.
 
@@ -155,6 +161,8 @@ Les durées NEC sont modifiables contrat par contrat. Les contrats « brouillon 
 - Les scripts de l'icône (`Installer-raccourci.bat`, `Demarrer.ps1`) n'ont pas pu être testés sur un vrai Windows pendant le développement : en cas de souci, `Lancer.bat` reste le moyen de lancement de référence.
 - Le format **.mpp** natif de MS Project n'est pas lisible : exporte en XML.
 - Pour Excel/CSV, la marge est calculée **en jours calendaires**, sans calendrier de travail.
+- Le **référentiel des marchés publics** est indicatif : le CCAP prime sur le CCAG quand il y déroge, et certaines valeurs (pénalités, délais du CCAG) sont signalées « à vérifier ». Saisis le **taux BCE** dans Paramètres chaque semestre pour chiffrer les intérêts moratoires.
+- En anglais, le contenu que tu saisis (titres, notes) et les textes juridiques français ne sont pas traduits.
 - L'IA locale (modèle 7B) est nettement moins précise que Claude sur les contrats longs ; dans les deux cas, ses propositions sont à vérifier dans les pièces.
 
 ## Pour le développement

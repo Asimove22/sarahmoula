@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { api, type Rec } from '../api';
 import type { Field, Option } from '../schemas';
+import { t } from '../i18n';
 
 const optValue = (o: Option) => (typeof o === 'string' ? o : o.value);
 const optLabel = (o: Option) => (typeof o === 'string' ? o : o.label);
@@ -59,17 +60,17 @@ export function EntityForm({
       <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
         {visible.map((f) => (
           <Fragment key={f.name}>
-          {f.section && <div className="mt-3 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 sm:col-span-2">{f.section}</div>}
+          {f.section && <div className="mt-3 border-b border-slate-200 pb-1 text-xs font-semibold uppercase tracking-wide text-brand-700 sm:col-span-2">{f.section}</div>}
           <div className={f.wide || f.type === 'textarea' ? 'sm:col-span-2' : ''}>
             {f.type === 'checkbox' ? (
               <label className="flex items-center gap-2 pt-5 text-sm">
                 <input type="checkbox" className="h-4 w-4 rounded border-slate-300" checked={Boolean(values[f.name])} onChange={(e) => set(f.name, e.target.checked ? 1 : 0)} />
-                {f.label}
+                {t(f.label)}
               </label>
             ) : (
               <label className="block">
                 <span className="label">
-                  {f.label}
+                  {t(f.label)}
                   {f.required && <span className="text-red-500"> *</span>}
                 </span>
                 {f.type === 'textarea' ? (
@@ -79,7 +80,7 @@ export function EntityForm({
                     <option value="">—</option>
                     {f.options!.map((o) => (
                       <option key={optValue(o)} value={optValue(o)}>
-                        {optLabel(o)}
+                        {t(optLabel(o))}
                       </option>
                     ))}
                   </select>
@@ -98,12 +99,12 @@ export function EntityForm({
                     type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
                     step={f.type === 'number' ? 'any' : undefined}
                     required={f.required}
-                    placeholder={f.placeholder}
+                    placeholder={f.placeholder && t(f.placeholder)}
                     value={values[f.name] ?? ''}
                     onChange={(e) => set(f.name, f.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)}
                   />
                 )}
-                {f.help && <span className="mt-0.5 block text-xs text-slate-400">{f.help}</span>}
+                {f.help && <span className="mt-0.5 block text-xs text-slate-400">{t(f.help)}</span>}
               </label>
             )}
           </div>
@@ -114,10 +115,10 @@ export function EntityForm({
         <div>{footer}</div>
         <div className="flex gap-2">
           <button type="button" className="btn-secondary" onClick={onCancel}>
-            Annuler
+            {t('Annuler')}
           </button>
           <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Enregistrement…' : submitLabel}
+            {saving ? t('Enregistrement…') : t(submitLabel)}
           </button>
         </div>
       </div>

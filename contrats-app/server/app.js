@@ -11,11 +11,13 @@ import { extractDocumentText, indexDocument, unindexDocument, ftsQuery } from '.
 import { parseSchedule } from './schedule.js';
 import { buildLetter, listTemplates, renderDocx, TEMPLATES } from './letters.js';
 import { derive, extraDeadlines, financeSummary, computeInsights, reviewTemplateFor } from './rules.js';
-import { AI_DEFAULTS, askContract, draftLetter, reviewContract, testProvider, triageCorrespondence } from './ai.js';
+import { AI_DEFAULTS, aiStatus, askContract, effectiveMode, draftLetter, reviewContract, testProvider, triageCorrespondence } from './ai.js';
 import { createOcr, needsOcr } from './ocr.js';
 import { createReviewWatch, acceptUpdate } from './review-watch.js';
 import { KINDS, buildExport, buildTemplate, prepareImport } from './imports.js';
 import { listBackups } from './backup.js';
+import { BUYERS, CCAG, derivePublic, lateInterest, referential } from './legal.js';
+import { localizeList, translate, wantsEnglish } from './i18n.js';
 
 const LABELS = {
   contracts: 'contrat',
@@ -36,6 +38,9 @@ const LABELS = {
   review_items: 'point de revue',
   schedule_imports: 'planning importé',
   review_updates: 'mise à jour de revue',
+  service_orders: 'ordre de service',
+  claims: 'réclamation',
+  subcontractors: 'sous-traitant',
 };
 
 // Ordre de lecture des pièces pour l'IA : les pièces contractuelles d'abord.
@@ -160,7 +165,11 @@ export function createApp({ db, dataDir, onShutdown }) {
         (SELECT COUNT(*) FROM compensation_events ce WHERE ce.contract_id = c.id AND ce.status NOT IN ('implémenté','rejeté','retiré')) AS open_ce_count,
         (SELECT COUNT(*) FROM correspondence m WHERE m.contract_id = c.id AND m.response_required = 1 AND m.response_date IS NULL) AS pending_replies_count
       FROM contracts c ORDER BY c.status = 'actif' DESC, c.updated_at DESC, c.id DESC`).all()));
-  app.get('/api/contracts/:id', h((req) => getRow('contracts', req.params.id)));
+  // ai_effective : moteur réellement utilisé pour ce contrat (réglage du contrat, sinon sélecteur global).
+  app.get('/api/contracts/:id', h((req) => {
+    const c = getRow('contracts', req.params.id);
+    return { ...c, ai_effective: effectiveMode(db, c) };
+  }));
   app.post('/api/contracts', h((req) => {
     if (!req.body.title) throw new HttpError(400, 'Le titre du contrat est obligatoire');
     return insert('contracts', req.body);
@@ -185,14 +194,24 @@ export function createApp({ db, dataDir, onShutdown }) {
     communication_rules: { order: 't.id' },
     review_items: { order: "CASE t.risk_level WHEN 'critique' THEN 0 WHEN 'élevé' THEN 1 WHEN 'moyen' THEN 2 ELSE 3 END, t.id" },
     schedule_imports: { order: 't.id DESC' },
+    service_orders: { prefix: () => 'OS', numberCol: 'number', order: 't.number DESC' },
+    claims: { prefix: () => 'REC', numberCol: 'number', order: 't.number DESC' },
+    subcontractors: { order: 't.company' },
   };
 
   const enrich = (table, rows) => {
-    if (!['compensation_events', 'payments', 'submittals', 'programmes'].includes(table)) return rows;
+    if (!['compensation_events', 'payments', 'submittals', 'programmes', 'service_orders', 'claims', 'subcontractors'].includes(table)) return rows;
     const contracts = new Map();
+    const ecbRate = table === 'payments' ? getSettings(db).ecb_rate : null;
     return rows.map((r) => {
       if (!contracts.has(r.contract_id)) contracts.set(r.contract_id, getRow('contracts', r.contract_id));
-      return derive(table, r, contracts.get(r.contract_id));
+      const c = contracts.get(r.contract_id);
+      const row = derivePublic(table, derive(table, r, c), c);
+      // Marchés publics : intérêts moratoires d'une situation payée en retard ou toujours impayée.
+      if (table === 'payments' && c.framework === 'FR_PUBLIC') {
+        row.late_interest = lateInterest({ amount: row.amount_validated ?? row.amount_requested, dueDate: row.computed_due_date, paidDate: row.paid_date, ecbRate });
+      }
+      return row;
     });
   };
 
@@ -340,10 +359,11 @@ export function createApp({ db, dataDir, onShutdown }) {
   }));
 
   // ---------- Échéances, tableau de bord, calendrier ----------
-  app.get('/api/deadlines', h((req) => allDeadlines(req.query.contract_id)));
+  app.get('/api/deadlines', h((req) => localizeList(allDeadlines(req.query.contract_id), wantsEnglish(req))));
 
-  app.get('/api/dashboard', h(() => {
-    const deadlines = allDeadlines();
+  app.get('/api/dashboard', h((req) => {
+    const en = wantsEnglish(req);
+    const deadlines = localizeList(allDeadlines(), en);
     const horizon30 = addDays(today(), 30);
     const count = (sql) => db.prepare(sql).get().n;
     return {
@@ -356,12 +376,98 @@ export function createApp({ db, dataDir, onShutdown }) {
         overdue: deadlines.filter((d) => d.overdue).length,
         pending_visas: count("SELECT COUNT(*) AS n FROM submittals WHERE visa_status = 'en attente'"),
       },
-      insights: computeInsights(db),
+      insights: localizeList(computeInsights(db), en),
       overdue: deadlines.filter((d) => d.overdue),
       upcoming: deadlines.filter((d) => !d.overdue && d.date <= horizon30),
       recent_activity: db.prepare(`
         SELECT j.*, c.title AS contract_title FROM journal j LEFT JOIN contracts c ON c.id = j.contract_id
         ORDER BY j.id DESC LIMIT 15`).all(),
+    };
+  }));
+
+  // ---------- KPI & graphiques ----------
+  app.get('/api/kpis', h((req) => {
+    const cid = req.query.contract_id ? Number(req.query.contract_id) : null;
+    const contracts = cid ? [getRow('contracts', cid)] : db.prepare("SELECT * FROM contracts WHERE status != 'archivé' ORDER BY title").all();
+    const ids = contracts.map((c) => c.id);
+    const scoped = (sql, ...args) => (ids.length ? db.prepare(`${sql} AND contract_id IN (${ids.map(() => '?').join(',')})`).all(...args, ...ids) : []);
+    const now = today();
+
+    const finance = contracts.map((c) => {
+      const f = financeSummary(db, c);
+      return { id: c.id, title: c.title, reference: c.reference, currency: f.currency, current: f.current, paid: f.paid,
+        outstanding: f.outstanding, remaining: Math.max(0, f.remaining_to_invoice), variation_percent: f.variation_percent, progress_percent: f.progress_percent };
+    }).filter((f) => f.current > 0);
+
+    // Revue de contrat : points par thème et niveau de risque (8 thèmes principaux, le reste regroupé).
+    const LEVELS = ['faible', 'moyen', 'élevé', 'critique'];
+    const byTheme = new Map();
+    for (const r of scoped("SELECT theme, risk_level FROM review_items WHERE status != 'clos'")) {
+      const row = byTheme.get(r.theme) ?? { theme: r.theme, faible: 0, moyen: 0, élevé: 0, critique: 0, non_évalué: 0, total: 0 };
+      row[LEVELS.includes(r.risk_level) ? r.risk_level : 'non_évalué'] += 1;
+      row.total += 1;
+      byTheme.set(r.theme, row);
+    }
+    let risks = [...byTheme.values()].sort((a, b) => b.critique - a.critique || b.élevé - a.élevé || b.total - a.total);
+    if (risks.length > 8) {
+      const other = { theme: wantsEnglish(req) ? translate('Autres thèmes') : 'Autres thèmes', faible: 0, moyen: 0, élevé: 0, critique: 0, non_évalué: 0, total: 0 };
+      for (const r of risks.slice(7)) for (const k of Object.keys(other)) if (k !== 'theme') other[k] += r[k];
+      risks = [...risks.slice(0, 7), other];
+    }
+
+    // EW / CE notifiés par mois sur 12 mois glissants.
+    const months = [];
+    for (let i = 11; i >= 0; i -= 1) {
+      const d = new Date(`${now.slice(0, 7)}-01T00:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      months.push(d.toISOString().slice(0, 7));
+    }
+    const countBy = (rows) => months.map((m) => rows.filter((r) => r.d?.startsWith(m)).length);
+    const ew = countBy(scoped('SELECT COALESCE(date_notified, substr(created_at, 1, 10)) AS d FROM early_warnings WHERE 1 = 1'));
+    const ce = countBy(scoped('SELECT COALESCE(date_notified, date_aware, substr(created_at, 1, 10)) AS d FROM compensation_events WHERE 1 = 1'));
+    const monthly = months.map((month, i) => ({ month, ew: ew[i], ce: ce[i] }));
+
+    // Échéances : en retard + 6 prochains mois.
+    const deadlines = allDeadlines(cid);
+    const nextMonths = months.slice(-1).concat([1, 2, 3, 4, 5].map((n) => {
+      const d = new Date(`${now.slice(0, 7)}-01T00:00:00Z`);
+      d.setUTCMonth(d.getUTCMonth() + n);
+      return d.toISOString().slice(0, 7);
+    }));
+    const deadlineMonths = [
+      { month: 'overdue', count: deadlines.filter((d) => d.overdue).length },
+      ...nextMonths.map((m) => ({ month: m, count: deadlines.filter((d) => !d.overdue && d.date.startsWith(m)).length })),
+    ];
+
+    const VISAS = ['en attente', 'VSO', 'VAO', 'refusé', 'sans objet'];
+    const visaRows = scoped('SELECT visa_status, visa_due, visa_date FROM submittals WHERE 1 = 1');
+    const visas = VISAS.map((status) => ({ status, count: visaRows.filter((v) => v.visa_status === status).length }));
+    const visaLate = visaRows.filter((v) => v.visa_status === 'en attente' && v.visa_due && v.visa_due < now).length;
+
+    // Planning : glissement de la fin prévue (dernier planning importé) par rapport à la date contractuelle.
+    const schedule = contracts.map((c) => {
+      const imp = db.prepare('SELECT planned_completion FROM schedule_imports WHERE contract_id = ? ORDER BY id DESC LIMIT 1').get(c.id);
+      const end = c.completion_date || c.end_date;
+      if (!imp?.planned_completion || !end) return null;
+      return { id: c.id, title: c.title, contract_end: end, planned_completion: imp.planned_completion,
+        slip_days: Math.round((Date.parse(imp.planned_completion) - Date.parse(end)) / 86400000) };
+    }).filter(Boolean);
+
+    const ces = scoped("SELECT quoted_amount FROM compensation_events WHERE status NOT IN ('implémenté','rejeté','retiré')");
+    return {
+      months,
+      tiles: {
+        active_contracts: contracts.filter((c) => c.status === 'actif').length,
+        open_ew: scoped("SELECT id FROM early_warnings WHERE status = 'ouvert'").length,
+        open_ce: ces.length,
+        ce_exposure: ces.reduce((s, c) => s + (c.quoted_amount ?? 0), 0),
+        high_risks: risks.reduce((s, r) => s + r.élevé + r.critique, 0),
+        overdue: deadlineMonths[0].count,
+        pending_visas: visas[0].count,
+        late_visas: visaLate,
+        claims_open: scoped("SELECT id FROM claims WHERE status NOT IN ('accepté','partiellement accepté','clos','abandonné')").length,
+      },
+      finance, risks, monthly, deadlines: deadlineMonths, visas, schedule,
     };
   }));
 
@@ -440,8 +546,15 @@ export function createApp({ db, dataDir, onShutdown }) {
 
   // ================= V2 =================
 
+  // ---------- Marchés publics : référentiel applicable ----------
+  app.get('/api/legal/options', h(() => ({
+    ccag: Object.entries(CCAG).map(([value, v]) => ({ value, label: v.label })),
+    buyers: Object.entries(BUYERS).map(([value, v]) => ({ value, label: v.label, payment_days: v.paymentDays })),
+  })));
+  app.get('/api/contracts/:id/legal', h((req) => referential(getRow('contracts', req.params.id), getSettings(db))));
+
   // ---------- Points d'attention, finances ----------
-  app.get('/api/insights', h((req) => computeInsights(db, { contractId: req.query.contract_id })));
+  app.get('/api/insights', h((req) => localizeList(computeInsights(db, { contractId: req.query.contract_id }), wantsEnglish(req))));
   app.get('/api/contracts/:id/finance', h((req) => financeSummary(db, getRow('contracts', req.params.id))));
 
   // ---------- Revue de contrat : check-list type ----------
@@ -449,7 +562,7 @@ export function createApp({ db, dataDir, onShutdown }) {
     const contract = getRow('contracts', req.params.id);
     const existing = new Set(db.prepare('SELECT theme FROM review_items WHERE contract_id = ?').all(contract.id).map((r) => r.theme));
     let added = 0;
-    for (const [theme, content] of reviewTemplateFor(contract.framework)) {
+    for (const [theme, content] of reviewTemplateFor(contract)) {
       if (existing.has(theme)) continue;
       insert('review_items', { contract_id: contract.id, theme, content, status: 'à analyser', source: 'modèle' });
       added += 1;
@@ -580,7 +693,7 @@ export function createApp({ db, dataDir, onShutdown }) {
     const contract = getRow('contracts', req.body.contract_id);
     const template = TEMPLATES[req.body.template];
     if (!template) throw new HttpError(400, 'Modèle inconnu');
-    return buildLetter(db, { templateId: req.body.template, contract, entity: letterEntity(template, req.body.entity_id), settings: getSettings(db) });
+    return buildLetter(db, { templateId: req.body.template, contract, entity: letterEntity(template, req.body.entity_id), settings: getSettings(db), lang: req.body.lang });
   }));
   app.post('/api/letters/generate', h(async (req) => {
     const contract = getRow('contracts', req.body.contract_id);
@@ -590,7 +703,7 @@ export function createApp({ db, dataDir, onShutdown }) {
     if (!subject || !body) throw new HttpError(400, 'Objet et corps du courrier obligatoires');
     const entity = letterEntity(template, req.body.entity_id);
     const settings = getSettings(db);
-    const buffer = await renderDocx({ subject, body, recipient, cc, contract, settings, date: today() });
+    const buffer = await renderDocx({ subject, body, recipient, cc, contract, settings, date: today(), lang: req.body.lang === 'en' ? 'en' : 'fr' });
     const link = {
       early_warning_id: template.entity === 'early_warnings' ? entity.id : entity?.early_warning_id ?? null,
       compensation_event_id: template.entity === 'compensation_events' ? entity.id : entity?.compensation_event_id ?? null,
@@ -618,13 +731,20 @@ export function createApp({ db, dataDir, onShutdown }) {
   };
   app.get('/api/settings', h(() => publicSettings()));
   app.put('/api/settings', h((req) => {
-    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key', 'ocr_mode', 'review_watch_ai'];
+    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key', 'ocr_mode', 'review_watch_ai', 'ecb_rate'];
     const values = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
     // Une clé vide envoyée par le formulaire ne remplace pas la clé enregistrée.
     if (values.claude_api_key === '' || values.claude_api_key === undefined) delete values.claude_api_key;
     if (req.body.remove_claude_key) values.claude_api_key = null;
     setSettings(db, values);
     return publicSettings();
+  }));
+  // Bascule rapide du moteur d'IA (sélecteur de l'en-tête).
+  app.get('/api/ai/status', h(() => aiStatus(db)));
+  app.put('/api/ai/mode', h((req) => {
+    if (!['ollama', 'claude', 'off'].includes(req.body.mode)) throw new HttpError(400, 'Moteur inconnu');
+    setSettings(db, { ai_mode: req.body.mode });
+    return aiStatus(db);
   }));
   app.post('/api/ai/test', h((req) => testProvider(db, req.body.provider === 'claude' ? 'claude' : 'ollama')));
 

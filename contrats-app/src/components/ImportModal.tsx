@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Download, FileSpreadsheet, Upload } from 'lucide-react';
 import type { Rec } from '../api';
 import { Badge, FileDrop, Modal, toast, toastError } from './ui';
+import { t } from '../i18n';
 
 export type ImportKind = 'review' | 'raci' | 'communication';
 
@@ -80,11 +81,11 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
   };
 
   const run = async () => {
-    if (mode === 'remplacer' && !confirm('Remplacer : les éléments existants de ce registre seront supprimés avant l’import. Continuer ?')) return;
+    if (mode === 'remplacer' && !confirm(t('Remplacer : les éléments existants de ce registre seront supprimés avant l’import. Continuer ?'))) return;
     setBusy(true);
     try {
       const r = await post(`/api/contracts/${contractId}/import/${kind}`, file!, { sheet, mapping, mode });
-      toast(`${r.created} ajouté(s), ${r.updated} mis à jour${r.stakeholders_created ? `, ${r.stakeholders_created} intervenant(s) créé(s)` : ''}. Fichier archivé dans la GED.`);
+      toast(t('{created} ajouté(s), {updated} mis à jour', { created: r.created, updated: r.updated }) + (r.stakeholders_created ? t(', {n} intervenant(s) créé(s)', { n: r.stakeholders_created }) : '') + t('. Fichier archivé dans la GED.'));
       onDone();
       onClose();
     } catch (e) {
@@ -95,15 +96,15 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
   };
 
   return (
-    <Modal title={TITLES[kind]} onClose={onClose} wide>
+    <Modal title={t(TITLES[kind])} onClose={onClose} wide>
       <div className="space-y-4 text-sm">
-        <p className="text-slate-600">{HELP[kind]}</p>
+        <p className="text-slate-600">{t(HELP[kind])}</p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[260px] flex-1">
             <FileDrop
               compact
               multiple={false}
-              label={file ? `${file.name} — cliquez pour changer` : 'Déposez votre fichier Excel (.xlsx) ou CSV'}
+              label={file ? `${file.name} — ${t('cliquez pour changer')}` : t('Déposez votre fichier Excel (.xlsx) ou CSV')}
               onFiles={([f]) => {
                 setFile(f);
                 load(f);
@@ -111,7 +112,7 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
             />
           </div>
           <a className="btn-secondary" href={`/api/import-templates/${kind}.xlsx`}>
-            <Download size={16} /> Modèle Excel
+            <Download size={16} /> {t('Modèle Excel')}
           </a>
         </div>
 
@@ -120,7 +121,7 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
             <div className="flex flex-wrap items-center gap-3">
               {preview.sheets.length > 1 && (
                 <label className="flex items-center gap-2">
-                  Feuille
+                  {t('Feuille')}
                   <select className="input w-auto" value={sheet} onChange={(e) => { setSheet(e.target.value); load(file!, { sheet: e.target.value }); }}>
                     {preview.sheets.map((s: string) => (
                       <option key={s}>{s}</option>
@@ -129,21 +130,21 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
                 </label>
               )}
               <span className="text-slate-500">
-                En-têtes en ligne {preview.header_row} · <b>{preview.total}</b> ligne(s) exploitable(s)
+                {t('En-têtes en ligne')} {preview.header_row} · <b>{preview.total}</b> {t('ligne(s) exploitable(s)')}
               </span>
             </div>
 
             <div>
-              <div className="label">Correspondance des colonnes {kind === 'raci' && '(colonnes non affectées = intervenants)'}</div>
+              <div className="label">{t('Correspondance des colonnes')} {kind === 'raci' && '(colonnes non affectées = intervenants)'}</div>
               <div className="flex flex-wrap gap-2">
                 {preview.columns.filter((c: Rec) => c.header).map((c: Rec) => (
                   <label key={c.index} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
                     <div className="max-w-[180px] truncate text-xs font-medium" title={c.header}>{c.header}</div>
                     <select className="mt-0.5 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs" value={mapping[c.index] ?? ''} onChange={(e) => changeColumn(c.index, e.target.value)}>
-                      <option value="">{kind === 'raci' ? 'Intervenant' : '— ignorer —'}</option>
+                      <option value="">{kind === 'raci' ? t('Intervenant') : t('— ignorer —')}</option>
                       {preview.fields.map((f: string) => (
                         <option key={f} value={f}>
-                          {FIELD_LABELS[f] ?? f}
+                          {FIELD_LABELS[f] ? t(FIELD_LABELS[f]) : f}
                         </option>
                       ))}
                     </select>
@@ -161,29 +162,29 @@ export function ImportModal({ contractId, kind, onClose, onDone }: { contractId:
             <div className="max-h-72 overflow-auto rounded border border-slate-200">
               <PreviewTable kind={kind} preview={preview} />
             </div>
-            {preview.total > preview.items.length && <p className="text-xs text-slate-400">Aperçu des {preview.items.length} premières lignes sur {preview.total}.</p>}
+            {preview.total > preview.items.length && <p className="text-xs text-slate-400">{t('Aperçu des')} {preview.items.length} {t('premières lignes sur')} {preview.total}.</p>}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
               <div className="flex gap-4">
                 <label className="flex items-center gap-1.5">
-                  <input type="radio" checked={mode === 'ajouter'} onChange={() => setMode('ajouter')} /> Ajouter et mettre à jour
+                  <input type="radio" checked={mode === 'ajouter'} onChange={() => setMode('ajouter')} /> {t('Ajouter et mettre à jour')}
                 </label>
                 <label className="flex items-center gap-1.5">
-                  <input type="radio" checked={mode === 'remplacer'} onChange={() => setMode('remplacer')} /> Remplacer l’existant
+                  <input type="radio" checked={mode === 'remplacer'} onChange={() => setMode('remplacer')} /> {t('Remplacer l’existant')}
                 </label>
               </div>
               <div className="flex gap-2">
                 <button className="btn-secondary" onClick={onClose}>
-                  Annuler
+                  {t('Annuler')}
                 </button>
                 <button className="btn-primary" onClick={run} disabled={busy || !preview.total}>
-                  <Upload size={16} /> {busy ? 'Import…' : `Importer ${preview.total} ligne(s)`}
+                  <Upload size={16} /> {busy ? t('Import…') : t('Importer {n} ligne(s)', { n: preview.total })}
                 </button>
               </div>
             </div>
           </>
         )}
-        {!preview && busy && <p className="text-slate-500">Lecture du fichier…</p>}
+        {!preview && busy && <p className="text-slate-500">{t('Lecture du fichier…')}</p>}
       </div>
     </Modal>
   );
@@ -196,7 +197,7 @@ function PreviewTable({ kind, preview }: { kind: ImportKind; preview: Rec }) {
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-slate-50">
           <tr>
-            <th className="th">Activité</th>
+            <th className="th">{t('Activité')}</th>
             {preview.people.map((p: string) => (
               <th key={p} className="th text-center normal-case">{p}</th>
             ))}
@@ -221,7 +222,7 @@ function PreviewTable({ kind, preview }: { kind: ImportKind; preview: Rec }) {
       <thead className="sticky top-0 bg-slate-50">
         <tr>
           {cols.map((c) => (
-            <th key={c} className="th">{FIELD_LABELS[c]}</th>
+            <th key={c} className="th">{t(FIELD_LABELS[c])}</th>
           ))}
         </tr>
       </thead>
@@ -245,10 +246,10 @@ export function ImportExportButtons({ contractId, kind, onImported }: { contract
   return (
     <>
       <button className="btn-secondary" onClick={() => setOpen(true)}>
-        <Upload size={16} /> Importer Excel
+        <Upload size={16} /> {t('Importer Excel')}
       </button>
       <a className="btn-secondary" href={`/api/contracts/${contractId}/export/${kind}.xlsx`}>
-        <FileSpreadsheet size={16} /> Exporter Excel
+        <FileSpreadsheet size={16} /> {t('Exporter Excel')}
       </a>
       {open && <ImportModal contractId={contractId} kind={kind} onClose={() => setOpen(false)} onDone={onImported} />}
     </>

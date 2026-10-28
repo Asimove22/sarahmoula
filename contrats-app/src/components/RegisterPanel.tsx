@@ -6,6 +6,7 @@ import { EntityForm } from './EntityForm';
 import { DocumentsPanel } from './DocumentsPanel';
 import { LETTERS_BY_ENTITY, LetterModal } from './LetterModal';
 import { Empty, Modal, toast, toastError } from './ui';
+import { t } from '../i18n';
 
 export interface Column {
   key: string;
@@ -85,10 +86,10 @@ export function RegisterPanel({
     try {
       if (editing?.id) {
         setEditing(await api.put(`/api/${table}/${editing.id}`, values));
-        toast('Modifications enregistrées');
+        toast(t('Modifications enregistrées'));
       } else {
         const created = await api.post(`/api/${table}`, { ...values, contract_id: contractId });
-        toast(`Créé : ${created.number ?? created.reference ?? created.title ?? ''}`);
+        toast(t('Créé : {name}', { name: created.number ?? created.reference ?? created.title ?? '' }));
         // On garde la fenêtre ouverte pour pouvoir joindre des documents.
         setEditing(docLink ? created : null);
       }
@@ -99,7 +100,7 @@ export function RegisterPanel({
   };
 
   const remove = async () => {
-    if (!editing?.id || !confirm('Supprimer définitivement cet élément ?')) return;
+    if (!editing?.id || !confirm(t('Supprimer définitivement cet élément ?'))) return;
     try {
       await api.del(`/api/${table}/${editing.id}`);
       close();
@@ -116,22 +117,22 @@ export function RegisterPanel({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto text-base font-semibold">
-          {title} <span className="text-sm font-normal text-slate-400">({rows.length})</span>
+          {t(title)} <span className="text-sm font-normal text-slate-400">({rows.length})</span>
         </h3>
-        {rows.length > 5 && <input className="input max-w-[200px]" placeholder="Filtrer…" value={filter} onChange={(e) => setFilter(e.target.value)} />}
-        <a className="btn-secondary" href={`/api/export/${table}.csv?contract_id=${contractId}`} title="Export CSV pour Excel">
-          <FileSpreadsheet size={16} /> Excel
+        {rows.length > 5 && <input className="input max-w-[200px]" placeholder={t('Filtrer…')} value={filter} onChange={(e) => setFilter(e.target.value)} />}
+        <a className="btn-secondary" href={`/api/export/${table}.csv?contract_id=${contractId}`} title={t('Export CSV pour Excel')}>
+          <FileSpreadsheet size={16} /> {t('Excel')}
         </a>
         {!hideAdd && (
           <button className="btn-primary" onClick={() => setEditing({ ...defaults })}>
-            <Plus size={16} /> {addLabel}
+            <Plus size={16} /> {t(addLabel)}
           </button>
         )}
       </div>
       {toolbar}
       {topContent}
       {shown.length === 0 ? (
-        <Empty>{emptyText}</Empty>
+        <Empty>{t(emptyText)}</Empty>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full">
@@ -139,14 +140,14 @@ export function RegisterPanel({
               <tr>
                 {columns.map((c) => (
                   <th key={c.key} className={`th ${c.className ?? ''}`}>
-                    {c.label}
+                    {t(c.label)}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {shown.map((r) => (
-                <tr key={r.id} className={`cursor-pointer hover:bg-indigo-50/40 ${rowClassName?.(r) ?? ''}`} onClick={() => setEditing(r)}>
+                <tr key={r.id} className={`cursor-pointer hover:bg-brand-50/40 ${rowClassName?.(r) ?? ''}`} onClick={() => setEditing(r)}>
                   {columns.map((c) => (
                     <td key={c.key} className={`td ${c.className ?? ''}`}>
                       {c.render ? c.render(r) : (r[c.key] ?? '—')}
@@ -160,7 +161,7 @@ export function RegisterPanel({
       )}
 
       {editing && (
-        <Modal title={editing.id ? `${editing.number ?? editing.reference ?? ''} ${editing.title ?? editing.subject ?? ''}` : addLabel} onClose={close} wide={Boolean(docLink && editing.id)}>
+        <Modal title={editing.id ? `${editing.number ?? editing.reference ?? ''} ${editing.title ?? editing.subject ?? ''}` : t(addLabel)} onClose={close} wide={Boolean(docLink && editing.id)}>
           <EntityForm
             key={editing.id ?? 'new'}
             fields={fields}
@@ -173,11 +174,11 @@ export function RegisterPanel({
               editing.id ? (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn-danger" onClick={remove}>
-                    <Trash2 size={16} /> Supprimer
+                    <Trash2 size={16} /> {t('Supprimer')}
                   </button>
                   {letters.map((l) => (
                     <button key={l.id} type="button" className="btn-secondary" onClick={() => setLetter({ template: l.id, entityId: editing.id })}>
-                      <Mail size={16} /> {l.label}
+                      <Mail size={16} /> {t(l.label)}
                     </button>
                   ))}
                   {formFooter?.(editing, close)}
@@ -187,7 +188,7 @@ export function RegisterPanel({
           />
           {docLink && editing.id && (
             <div className="mt-6 border-t border-slate-200 pt-4">
-              <h4 className="mb-2 text-sm font-semibold">Documents rattachés</h4>
+              <h4 className="mb-2 text-sm font-semibold">{t('Documents rattachés')}</h4>
               <DocumentsPanel compact contractId={contractId} filter={{ [docLink]: editing.id }} defaultCategory={docCategory} />
             </div>
           )}

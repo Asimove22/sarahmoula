@@ -57,6 +57,14 @@ function describeEvent(table, row, action, before, contract) {
       const days = Math.round((Date.parse(row.planned_completion) - Date.parse(end)) / 86400000);
       return { label: `Planning « ${row.name} » : achèvement prévu ${days} j après la date contractuelle`, detail: `Fin prévue ${row.planned_completion}, date contractuelle ${end}.`, themes: new RegExp(`(penalit|${EXECUTION_DELAY})`), raise: true, newTheme: 'Délais et pénalités' };
     }
+    case 'service_orders':
+      if (action === 'création')
+        return { label: `Ordre de service ${row.number ?? ''} : ${row.title}`, detail: [row.kind, row.amount != null && `incidence ${money(row.amount, contract.currency)}`, row.extra_days && `${row.extra_days} j`].filter(Boolean).join(' · '), text: `${row.title} ${row.notes ?? ''}`, themes: new RegExp(`(ordre de service|modif|avenant|prix|${EXECUTION_DELAY})`), newTheme: 'Ordres de service' };
+      return null;
+    case 'claims':
+      if (action === 'création') return { label: `Différend ${row.number ?? ''} : ${row.title}`, detail: row.notes ?? '', text: `${row.title} ${row.notes ?? ''}`, themes: /(reclam|differend|litige|forclusion)/, raise: true, newTheme: 'Différends et réclamations' };
+      if (changed('status') && ['rejeté', 'contentieux'].includes(row.status)) return { label: `Réclamation ${row.number ?? ''} ${row.status} : ${row.title}`, detail: row.decision ?? '', themes: /(reclam|differend|litige)/, raise: true };
+      return null;
     case 'submittals':
       if (changed('visa_status') && row.visa_status === 'refusé') return { label: `Visa refusé : ${row.number} ind. ${row.revision} – ${row.title}`, detail: row.comments ?? '', themes: /(visa|etudes|execution)/ };
       return null;

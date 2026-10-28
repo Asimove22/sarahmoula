@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Upload, X } from 'lucide-react';
 import { STATUS_COLORS } from '../schemas';
+import { t } from '../i18n';
 
 export function Badge({ value, className = '' }: { value?: string | null; className?: string }) {
   if (!value) return null;
   return (
     <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[value] ?? 'bg-slate-100 text-slate-700'} ${className}`}>
-      {value}
+      {t(value)}
     </span>
   );
 }
@@ -22,7 +23,7 @@ export function Modal({ title, onClose, children, wide }: { title: ReactNode; on
       <div className={`card w-full ${wide ? 'max-w-5xl' : 'max-w-3xl'} my-4`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <h2 className="text-base font-semibold">{title}</h2>
-          <button className="btn-ghost !p-1" onClick={onClose} aria-label="Fermer">
+          <button className="btn-ghost !p-1" onClick={onClose} aria-label={t('Fermer')}>
             <X size={18} />
           </button>
         </div>
@@ -41,7 +42,7 @@ export function Stat({ label, value, tone = 'slate', icon }: { label: string; va
     slate: 'text-slate-900',
     red: 'text-red-600',
     amber: 'text-amber-600',
-    indigo: 'text-indigo-600',
+    indigo: 'text-brand-600',
     emerald: 'text-emerald-600',
   };
   return (
@@ -49,7 +50,7 @@ export function Stat({ label, value, tone = 'slate', icon }: { label: string; va
       {icon && <div className="rounded-md bg-slate-100 p-2 text-slate-500">{icon}</div>}
       <div>
         <div className={`text-2xl font-semibold ${tones[tone]}`}>{value}</div>
-        <div className="text-xs text-slate-500">{label}</div>
+        <div className="text-xs text-slate-500">{t(label)}</div>
       </div>
     </div>
   );
@@ -74,7 +75,7 @@ export function FileDrop({ onFiles, label, compact, multiple = true }: { onFiles
       }}
       onClick={() => input.current?.click()}
       className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed text-sm transition ${
-        over ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-300 text-slate-500 hover:border-indigo-400 hover:bg-slate-50'
+        over ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-500 hover:border-brand-400 hover:bg-slate-50'
       } ${compact ? 'p-3' : 'p-6'}`}
     >
       <Upload size={18} />
@@ -124,9 +125,9 @@ export function Toaster() {
   }, []);
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-      {items.map((t) => (
-        <div key={t.id} className={`rounded-md px-4 py-2 text-sm text-white shadow-lg ${t.tone === 'error' ? 'bg-red-600' : 'bg-slate-800'}`}>
-          {t.message}
+      {items.map((item) => (
+        <div key={item.id} className={`rounded-md px-4 py-2 text-sm text-white shadow-lg ${item.tone === 'error' ? 'bg-red-600' : 'bg-slate-800'}`}>
+          {item.message}
         </div>
       ))}
     </div>
@@ -137,14 +138,14 @@ export function Toaster() {
 export function SubTabs({ tabs, value, onChange }: { tabs: { id: string; label: string; badge?: number }[]; value: string; onChange: (id: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {tabs.map((t) => (
+      {tabs.map((tab) => (
         <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          className={`rounded-full px-3 py-1 text-sm ${value === t.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          className={`rounded-full px-3 py-1 text-sm ${value === tab.id ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
         >
-          {t.label}
-          {t.badge ? <span className="ml-1.5 rounded-full bg-red-500 px-1.5 text-xs text-white">{t.badge}</span> : null}
+          {t(tab.label)}
+          {tab.badge ? <span className="ml-1.5 rounded-full bg-red-500 px-1.5 text-xs text-white">{tab.badge}</span> : null}
         </button>
       ))}
     </div>

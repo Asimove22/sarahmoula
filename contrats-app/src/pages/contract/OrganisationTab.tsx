@@ -6,6 +6,7 @@ import { ImportExportButtons } from '../../components/ImportModal';
 import { Badge, Empty, SubTabs, toastError } from '../../components/ui';
 import { COMMUNICATION_FIELDS, GROUP_MEMBER_FIELDS, STAKEHOLDER_FIELDS } from '../../schemas';
 import { fmtMoney } from '../../format';
+import { t } from '../../i18n';
 
 export function OrganisationTab({ contract, openId, onChange }: { contract: Rec; openId?: number; onChange: () => void }) {
   const [sub, setSub] = useState('intervenants');
@@ -30,7 +31,7 @@ export function OrganisationTab({ contract, openId, onChange }: { contract: Rec;
         <RegisterPanel
           table="stakeholders"
           contractId={contract.id}
-          title="Intervenants"
+          title={t('Intervenants')}
           addLabel="Ajouter un intervenant"
           emptyText="Renseignez le Client, le Project Manager / MOE, le Supervisor, l’OPC, le BCT, les sous-traitants…"
           fields={STAKEHOLDER_FIELDS}
@@ -40,7 +41,7 @@ export function OrganisationTab({ contract, openId, onChange }: { contract: Rec;
             { key: 'name', label: 'Nom', className: 'font-medium' },
             { key: 'organisation', label: 'Organisme' },
             { key: 'role', label: 'Rôle' },
-            { key: 'email', label: 'Email', render: (r) => (r.email ? <a className="text-indigo-700" href={`mailto:${r.email}`} onClick={(e) => e.stopPropagation()}>{r.email}</a> : '—') },
+            { key: 'email', label: 'Email', render: (r) => (r.email ? <a className="text-brand-700" href={`mailto:${r.email}`} onClick={(e) => e.stopPropagation()}>{r.email}</a> : '—') },
             { key: 'phone', label: 'Téléphone', className: 'whitespace-nowrap' },
           ]}
         />
@@ -51,7 +52,7 @@ export function OrganisationTab({ contract, openId, onChange }: { contract: Rec;
         <RegisterPanel
           table="communication_rules"
           contractId={contract.id}
-          title="Matrice de communication"
+          title={t('Matrice de communication')}
           addLabel="Ajouter une règle"
           emptyText="Qui envoie quoi, à qui, par quel canal et dans quel délai. Le « type » sert à proposer le destinataire des courriers générés."
           fields={COMMUNICATION_FIELDS}
@@ -90,7 +91,7 @@ function GroupPanel({ contract, onChange }: { contract: Rec; onChange: () => voi
     <RegisterPanel
       table="group_members"
       contractId={contract.id}
-      title={`Groupement ${contract.group_type ?? '(type non renseigné dans la fiche contrat)'}`}
+      title={`${t('Groupement')} ${contract.group_type ? t(contract.group_type) : t('(type non renseigné dans la fiche contrat)')}`}
       addLabel="Ajouter un membre"
       emptyText="Saisissez le mandataire et les cotraitants avec leurs quotes-parts, conformément à la convention de groupement (à archiver dans la GED)."
       fields={GROUP_MEMBER_FIELDS}
@@ -102,11 +103,11 @@ function GroupPanel({ contract, onChange }: { contract: Rec; onChange: () => voi
       topContent={
         members.length > 0 && (
           <div className={`rounded-md p-3 text-sm ${ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'}`}>
-            Total des quotes-parts : <b>{total.toFixed(2)} %</b> {ok ? '✓' : '— la somme doit faire 100 %'}
+            {t('Total des quotes-parts :')} <b>{total.toFixed(2)} %</b> {ok ? '✓' : t('— la somme doit faire 100 %')}
             {!members.some((m) => m.role === 'mandataire') && ' · aucun mandataire désigné'}
             <div className="mt-2 flex h-3 overflow-hidden rounded bg-white">
               {members.map((m, i) => (
-                <div key={m.id} title={`${m.company} : ${m.share_percent ?? 0} %`} style={{ width: `${Math.min(m.share_percent ?? 0, 100)}%` }} className={['bg-indigo-500', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-400', 'bg-violet-400'][i % 5]} />
+                <div key={m.id} title={`${m.company} : ${m.share_percent ?? 0} %`} style={{ width: `${Math.min(m.share_percent ?? 0, 100)}%` }} className={['bg-brand-500', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-400', 'bg-violet-400'][i % 5]} />
               ))}
             </div>
           </div>
@@ -126,7 +127,7 @@ function GroupPanel({ contract, onChange }: { contract: Rec; onChange: () => voi
 
 const LETTERS = ['', 'R', 'A', 'C', 'I', 'R/A'];
 const CELL_COLORS: Record<string, string> = {
-  R: 'bg-indigo-600 text-white',
+  R: 'bg-brand-600 text-white',
   A: 'bg-red-600 text-white',
   'R/A': 'bg-violet-600 text-white',
   C: 'bg-amber-300 text-amber-950',
@@ -181,20 +182,20 @@ function RaciMatrix({ contractId, onImported }: { contractId: number; onImported
     return (
       <div className="space-y-3">
         {tools}
-        <Empty>Ajoutez les intervenants (onglet Intervenants) ou importez directement votre matrice RACI Excel : ses colonnes créeront les intervenants.</Empty>
+        <Empty>{t('Ajoutez les intervenants (onglet Intervenants) ou importez directement votre matrice RACI Excel : ses colonnes créeront les intervenants.')}</Empty>
       </div>
     );
   return (
     <div className="space-y-3">
       {tools}
       <p className="text-xs text-slate-500">
-        <b>R</b> réalise · <b>A</b> approuve (un seul par activité) · <b>C</b> consulté · <b>I</b> informé. Cliquez sur une case pour changer la lettre.
+        <b>R</b> {t('réalise ·')} <b>A</b> {t('approuve (un seul par activité) ·')} <b>C</b> {t('consulté ·')} <b>I</b> {t('informé. Cliquez sur une case pour changer la lettre.')}
       </p>
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
-              <th className="th min-w-[220px]">Activité / livrable</th>
+              <th className="th min-w-[220px]">{t('Activité / livrable')}</th>
               {people.map((p) => (
                 <th key={p.id} className="th text-center normal-case" title={p.role}>
                   {p.name}
@@ -213,7 +214,7 @@ function RaciMatrix({ contractId, onImported }: { contractId: number; onImported
                   <td className="td">
                     {r.wbs_code && <span className="mr-1 text-xs text-slate-400">{r.wbs_code}</span>}
                     {r.activity}
-                    {approvers !== 1 && <div className="text-xs text-red-600">{approvers === 0 ? 'Aucun approbateur (A)' : 'Plusieurs approbateurs (A)'}</div>}
+                    {approvers !== 1 && <div className="text-xs text-red-600">{approvers === 0 ? t('Aucun approbateur (A)') : t('Plusieurs approbateurs (A)')}</div>}
                   </td>
                   {people.map((p) => (
                     <td key={p.id} className="td text-center">
@@ -225,7 +226,7 @@ function RaciMatrix({ contractId, onImported }: { contractId: number; onImported
                   <td className="td">
                     <button
                       className="btn-ghost !p-1 text-red-600"
-                      title="Supprimer l’activité"
+                      title={t('Supprimer l’activité')}
                       onClick={async () => {
                         if (!confirm(`Supprimer « ${r.activity} » ?`)) return;
                         await api.del(`/api/raci_items/${r.id}`).catch(toastError);
@@ -242,10 +243,10 @@ function RaciMatrix({ contractId, onImported }: { contractId: number; onImported
         </table>
       </div>
       <form onSubmit={add} className="flex flex-wrap gap-2">
-        <input className="input w-28" placeholder="Code WBS" value={wbs} onChange={(e) => setWbs(e.target.value)} />
-        <input className="input max-w-md flex-1" placeholder="Nouvelle activité (ex. Notifier les Early Warnings, Viser les plans EXE…)" value={activity} onChange={(e) => setActivity(e.target.value)} />
+        <input className="input w-28" placeholder={t('Code WBS')} value={wbs} onChange={(e) => setWbs(e.target.value)} />
+        <input className="input max-w-md flex-1" placeholder={t('Nouvelle activité (ex. Notifier les Early Warnings, Viser les plans EXE…)')} value={activity} onChange={(e) => setActivity(e.target.value)} />
         <button className="btn-primary">
-          <Plus size={16} /> Ajouter
+          <Plus size={16} /> {t('Ajouter')}
         </button>
       </form>
     </div>

@@ -1,11 +1,11 @@
 {
-  "name": "Gestion contractuelle",
-  "short_name": "Contrats",
+  "name": "Clausia – Gestion contractuelle",
+  "short_name": "Clausia",
   "description": "Gestion contractuelle et documentaire – NEC, marchés publics et privés",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
-  "theme_color": "#4f46e5",
+  "theme_color": "#D7000F",
   "lang": "fr",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

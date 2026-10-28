@@ -58,11 +58,28 @@ export const DOCUMENT_CATEGORIES = [
   'Garantie / Caution',
   'Assurance',
   'Plan / Technique',
+  'CCAG',
   'Contract Data / CCAP',
   'Autre',
 ];
 
 const nec = (v: Rec) => isNecValue(v.framework);
+const pub = (v: Rec) => v.framework === 'FR_PUBLIC';
+
+export const CCAG_OPTIONS = [
+  { value: 'TRAVAUX_2021', label: 'CCAG Travaux 2021' },
+  { value: 'FCS_2021', label: 'CCAG Fournitures courantes et services 2021' },
+  { value: 'MOE_2021', label: 'CCAG Maîtrise d’œuvre 2021' },
+  { value: 'PI_2021', label: 'CCAG Prestations intellectuelles 2021' },
+  { value: 'TIC_2021', label: 'CCAG Techniques de l’information et de la communication 2021' },
+  { value: 'MI_2021', label: 'CCAG Marchés industriels 2021' },
+];
+export const BUYER_TYPES = [
+  { value: 'etat', label: 'État et ses établissements publics (30 j)' },
+  { value: 'collectivite', label: 'Collectivité territoriale / établissement public local (30 j)' },
+  { value: 'sante', label: 'Établissement public de santé (50 j)' },
+  { value: 'entreprise_publique', label: 'Entreprise publique (60 j)' },
+];
 const isNecValue = (f?: string) => f === 'NEC3' || f === 'NEC4';
 
 export const CONTRACT_FIELDS: Field[] = [
@@ -89,6 +106,14 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'price_revision', label: 'Révision / actualisation des prix', placeholder: 'ex. index BT01, mois zéro…' },
   { name: 'penalty_terms', label: 'Pénalités de retard', placeholder: 'ex. 1/1000 par jour, plafond 10 %', wide: true },
   { name: 'visa_days', label: 'Délai de visa (jours)', type: 'number', help: 'Délai laissé au MOE / PM pour viser un document (15 j par défaut).' },
+  { name: 'buyer_type', label: 'Type d’acheteur', type: 'select', options: BUYER_TYPES, showIf: pub, section: 'Marché public', help: 'Détermine le délai global de paiement légal (30, 50 ou 60 jours).' },
+  { name: 'ccag', label: 'CCAG applicable', type: 'select', options: CCAG_OPTIONS, showIf: pub },
+  { name: 'procedure', label: 'Procédure de passation', type: 'select', options: ['Appel d’offres ouvert', 'Appel d’offres restreint', 'Procédure adaptée (MAPA)', 'Procédure avec négociation', 'Dialogue compétitif', 'Marché sans publicité ni mise en concurrence', 'Accord-cadre / marché subséquent', 'Autre'], showIf: pub },
+  { name: 'notification_date', label: 'Date de notification du marché', type: 'date', showIf: pub },
+  { name: 'final_account_sent_date', label: 'Projet de décompte final transmis le', type: 'date', showIf: pub, section: 'Décompte' },
+  { name: 'dgd_notified_date', label: 'Décompte général notifié le', type: 'date', showIf: pub, help: '30 jours pour le retourner signé, avec ou sans réserves.' },
+  { name: 'dgd_signed_date', label: 'Décompte général retourné le', type: 'date', showIf: pub },
+  { name: 'dgd_reserves', label: 'Retourné avec réserves', type: 'checkbox', showIf: pub },
   { name: 'group_type', label: 'Groupement', type: 'select', options: [{ value: 'conjoint', label: 'Groupement conjoint' }, { value: 'solidaire', label: 'Groupement solidaire' }] },
   { name: 'project_manager', label: "Project Manager / Maître d'œuvre", section: 'Intervenants' },
   { name: 'supervisor', label: 'Supervisor / Contrôleur' },
@@ -99,7 +124,18 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'pm_quote_reply_weeks', label: 'Réponse PM au devis (sem.) – cl. 62.3', type: 'number', showIf: nec },
   { name: 'pm_programme_reply_weeks', label: 'Réponse PM au programme (sem.) – cl. 31.3', type: 'number', showIf: nec },
   { name: 'programme_interval_weeks', label: 'Intervalle des programmes révisés (sem.) – cl. 32.2', type: 'number', showIf: nec, help: 'Selon le Contract Data.' },
-  { name: 'ai_allow_cloud', label: 'Autoriser l’IA cloud (Claude) pour ce contrat', type: 'checkbox', section: 'Assistant IA', help: 'Sinon, seule l’IA locale (Ollama) lit ses documents.' },
+  {
+    name: 'ai_provider',
+    label: 'Moteur d’IA pour ce contrat',
+    type: 'select',
+    section: 'Assistant IA',
+    options: [
+      { value: 'ollama', label: 'Toujours en local (Ollama) – documents confidentiels' },
+      { value: 'claude', label: 'Claude (cloud)' },
+      { value: 'off', label: 'Désactivée pour ce contrat' },
+    ],
+    help: 'Vide : le moteur choisi dans la barre du haut s’applique.',
+  },
   { name: 'notes', label: 'Notes', type: 'textarea', wide: true, section: 'Notes' },
 ];
 
@@ -160,6 +196,51 @@ export const CORRESPONDENCE_FIELDS: Field[] = [
   { name: 'early_warning_id', label: 'Early Warning lié', type: 'ref', ref: 'early_warnings' },
   { name: 'compensation_event_id', label: 'Compensation Event lié', type: 'ref', ref: 'compensation_events' },
   { name: 'summary', label: 'Résumé / contenu', type: 'textarea', wide: true },
+];
+
+export const SERVICE_ORDER_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (OS-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['reçu', 'accepté sans réserve', 'réserves émises', 'clos'] },
+  { name: 'title', label: 'Objet', required: true, wide: true },
+  { name: 'kind', label: 'Nature', type: 'select', options: ['Démarrage', 'Prescriptions techniques', 'Modification / travaux supplémentaires', 'Ajournement', 'Reprise', 'Prix nouveaux', 'Autre'] },
+  { name: 'issued_date', label: 'Émis le', type: 'date' },
+  { name: 'received_date', label: 'Reçu le', type: 'date', help: 'Point de départ des 15 jours pour émettre des réserves.' },
+  { name: 'effect_date', label: 'Date d’effet', type: 'date' },
+  { name: 'amount', label: 'Incidence financière estimée (HT)', type: 'number' },
+  { name: 'extra_days', label: 'Incidence sur le délai (jours)', type: 'number' },
+  { name: 'reserves_due', label: 'Réserves avant le', type: 'date', help: 'Laisser vide : réception + 15 jours.' },
+  { name: 'reserves_date', label: 'Réserves émises le', type: 'date' },
+  { name: 'reserves_text', label: 'Motifs des réserves', type: 'textarea', wide: true },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const CLAIM_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (REC-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['différend', 'mémoire transmis', 'accepté', 'partiellement accepté', 'rejeté', 'médiation / CCRA', 'contentieux', 'clos', 'abandonné'] },
+  { name: 'title', label: 'Objet du différend', required: true, wide: true },
+  { name: 'dispute_date', label: 'Différend apparu le', type: 'date', help: '2 mois pour transmettre le mémoire en réclamation.' },
+  { name: 'memo_due', label: 'Mémoire à transmettre avant le', type: 'date', help: 'Laisser vide : calculé (+2 mois).' },
+  { name: 'memo_sent_date', label: 'Mémoire transmis le', type: 'date' },
+  { name: 'amount_claimed', label: 'Montant réclamé (HT)', type: 'number' },
+  { name: 'extra_days_claimed', label: 'Prolongation demandée (jours)', type: 'number' },
+  { name: 'response_due', label: 'Réponse attendue avant le', type: 'date', help: 'Laisser vide : envoi + 2 mois (silence = rejet).' },
+  { name: 'response_date', label: 'Réponse reçue le', type: 'date' },
+  { name: 'decision', label: 'Décision de l’acheteur', type: 'textarea', wide: true },
+  { name: 'amount_obtained', label: 'Montant obtenu (HT)', type: 'number' },
+  { name: 'next_step', label: 'Suite envisagée', type: 'select', options: ['Négociation', 'Médiation', 'Comité consultatif de règlement amiable (CCRA)', 'Tribunal administratif', 'Abandon'] },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const SUBCONTRACTOR_FIELDS: Field[] = [
+  { name: 'company', label: 'Entreprise', required: true },
+  { name: 'status', label: 'Statut', type: 'select', options: ['en cours d’agrément', 'agréé', 'refusé', 'terminé'] },
+  { name: 'scope', label: 'Prestations sous-traitées', type: 'textarea', wide: true },
+  { name: 'amount_ht', label: 'Montant sous-traité (HT)', type: 'number' },
+  { name: 'direct_payment', label: 'Paiement direct', type: 'checkbox', help: 'Obligatoire dès 600 € TTC (CCP, art. R2193-10).' },
+  { name: 'dc4_date', label: 'DC4 transmis le', type: 'date' },
+  { name: 'approval_date', label: 'Acceptation / agrément le', type: 'date' },
+  { name: 'contact', label: 'Contact' },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
 ];
 
 export const MILESTONE_FIELDS: Field[] = [
@@ -298,14 +379,14 @@ export const STATUS_COLORS: Record<string, string> = {
   'converti en CE': 'bg-violet-100 text-violet-800',
   notifié: 'bg-sky-100 text-sky-800',
   'devis demandé': 'bg-amber-100 text-amber-800',
-  'devis soumis': 'bg-indigo-100 text-indigo-800',
+  'devis soumis': 'bg-brand-100 text-brand-800',
   implémenté: 'bg-emerald-100 text-emerald-800',
   rejeté: 'bg-red-100 text-red-800',
   retiré: 'bg-slate-200 text-slate-600',
   'à traiter': 'bg-amber-100 text-amber-800',
   'en cours': 'bg-sky-100 text-sky-800',
   répondu: 'bg-emerald-100 text-emerald-800',
-  envoyé: 'bg-indigo-100 text-indigo-800',
+  envoyé: 'bg-brand-100 text-brand-800',
   classé: 'bg-slate-200 text-slate-600',
   'à venir': 'bg-sky-100 text-sky-800',
   atteint: 'bg-emerald-100 text-emerald-800',
@@ -316,7 +397,7 @@ export const STATUS_COLORS: Record<string, string> = {
   signé: 'bg-emerald-100 text-emerald-800',
   refusé: 'bg-red-100 text-red-800',
   soumise: 'bg-sky-100 text-sky-800',
-  validée: 'bg-indigo-100 text-indigo-800',
+  validée: 'bg-brand-100 text-brand-800',
   payée: 'bg-emerald-100 text-emerald-800',
   contestée: 'bg-red-100 text-red-800',
   soumis: 'bg-sky-100 text-sky-800',
@@ -336,9 +417,21 @@ export const STATUS_COLORS: Record<string, string> = {
   critique: 'bg-red-100 text-red-800',
   attention: 'bg-amber-100 text-amber-800',
   info: 'bg-sky-100 text-sky-800',
-  mandataire: 'bg-indigo-100 text-indigo-800',
+  mandataire: 'bg-brand-100 text-brand-800',
   cotraitant: 'bg-slate-100 text-slate-700',
   règle: 'bg-slate-100 text-slate-700',
+  reçu: 'bg-amber-100 text-amber-800',
+  'accepté sans réserve': 'bg-slate-200 text-slate-700',
+  'réserves émises': 'bg-emerald-100 text-emerald-800',
+  différend: 'bg-amber-100 text-amber-800',
+  'mémoire transmis': 'bg-sky-100 text-sky-800',
+  'partiellement accepté': 'bg-lime-100 text-lime-800',
+  'médiation / CCRA': 'bg-violet-100 text-violet-800',
+  contentieux: 'bg-red-100 text-red-800',
+  abandonné: 'bg-slate-200 text-slate-600',
+  'en cours d’agrément': 'bg-amber-100 text-amber-800',
+  agréé: 'bg-emerald-100 text-emerald-800',
+  terminé: 'bg-slate-200 text-slate-600',
   IA: 'bg-violet-100 text-violet-800',
 };
 
@@ -361,6 +454,9 @@ export const TAB_FOR_ENTITY: Record<string, string> = {
   raci_items: 'organisation',
   communication_rules: 'organisation',
   review_items: 'revue',
+  service_orders: 'marche',
+  claims: 'marche',
+  subcontractors: 'marche',
 };
 
 export const ENTITY_LABELS: Record<string, string> = {
@@ -382,4 +478,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   communication_rules: 'Règle de communication',
   review_items: 'Point de revue',
   review_updates: 'Veille de revue',
+  service_orders: 'Ordre de service',
+  claims: 'Réclamation',
+  subcontractors: 'Sous-traitant',
 };

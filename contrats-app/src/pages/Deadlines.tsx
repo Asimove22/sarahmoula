@@ -4,18 +4,20 @@ import { CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { DeadlineList, deadlineLink } from '../components/DeadlineList';
 import { toastError } from '../components/ui';
-import { todayIso } from '../format';
+import { locale, todayIso } from '../format';
+import { t } from '../i18n';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const KIND_COLORS: Record<string, string> = {
   contrat: 'bg-slate-200 text-slate-800',
   early_warning: 'bg-amber-100 text-amber-900',
-  compensation_event: 'bg-indigo-100 text-indigo-900',
+  compensation_event: 'bg-brand-100 text-brand-900',
   correspondence: 'bg-sky-100 text-sky-900',
   milestone: 'bg-emerald-100 text-emerald-900',
   programme: 'bg-violet-100 text-violet-900',
   visa: 'bg-orange-100 text-orange-900',
   paiement: 'bg-rose-100 text-rose-900',
+  'marché public': 'bg-brand-100 text-brand-900',
 };
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -52,9 +54,9 @@ export function Deadlines() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-xl font-semibold">Échéancier</h1>
+        <h1 className="mr-auto text-xl font-semibold">{t('Échéancier')}</h1>
         <select className="input w-auto" value={contractId} onChange={(e) => setContractId(e.target.value)}>
-          <option value="">Tous les contrats</option>
+          <option value="">{t('Tous les contrats')}</option>
           {contracts.map((c) => (
             <option key={c.id} value={c.id}>
               {c.reference ? `${c.reference} – ` : ''}
@@ -63,24 +65,24 @@ export function Deadlines() {
           ))}
         </select>
         <a className="btn-secondary" href={`/api/calendar.ics${contractId ? `?contract_id=${contractId}` : ''}`}>
-          <CalendarPlus size={16} /> Exporter (.ics)
+          <CalendarPlus size={16} /> {t('Exporter (.ics)')}
         </a>
       </div>
 
       <div className="card p-3">
         <div className="mb-2 flex items-center justify-between">
-          <button className="btn-ghost" onClick={() => shift(-1)} aria-label="Mois précédent">
+          <button className="btn-ghost" onClick={() => shift(-1)} aria-label={t('Mois précédent')}>
             <ChevronLeft size={18} />
           </button>
-          <div className="font-semibold capitalize">{month.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</div>
-          <button className="btn-ghost" onClick={() => shift(1)} aria-label="Mois suivant">
+          <div className="font-semibold capitalize">{month.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })}</div>
+          <button className="btn-ghost" onClick={() => shift(1)} aria-label={t('Mois suivant')}>
             <ChevronRight size={18} />
           </button>
         </div>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded border border-slate-200 bg-slate-200 text-xs">
           {WEEKDAYS.map((w) => (
             <div key={w} className="bg-slate-50 px-1 py-1 text-center font-medium text-slate-500">
-              {w}
+              {t(w)}
             </div>
           ))}
           {days.map((d) => {
@@ -89,7 +91,7 @@ export function Deadlines() {
             const inMonth = d.getMonth() === month.getMonth();
             return (
               <div key={key} className={`min-h-[84px] bg-white p-1 ${inMonth ? '' : 'opacity-40'}`}>
-                <div className={`mb-0.5 text-right ${key === today ? 'font-bold text-indigo-700' : 'text-slate-400'}`}>{d.getDate()}</div>
+                <div className={`mb-0.5 text-right ${key === today ? 'font-bold text-brand-700' : 'text-slate-400'}`}>{d.getDate()}</div>
                 {list.slice(0, 3).map((it, i) => (
                   <Link key={i} to={deadlineLink(it)} title={`${it.title} – ${it.contract_title}`} className={`mb-0.5 block truncate rounded px-1 ${KIND_COLORS[it.kind] ?? ''} ${it.critical ? 'ring-1 ring-red-400' : ''}`}>
                     {it.title}
@@ -103,7 +105,7 @@ export function Deadlines() {
       </div>
 
       <section className="card p-4">
-        <h2 className="mb-2 font-semibold">Toutes les échéances ouvertes ({items.length})</h2>
+        <h2 className="mb-2 font-semibold">{t('Toutes les échéances ouvertes (')}{items.length})</h2>
         <DeadlineList items={items} showContract={!contractId} />
       </section>
     </div>

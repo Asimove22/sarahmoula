@@ -238,7 +238,7 @@ test('V2 : GED plein texte, planning, visas, finances, courriers, points d’att
   assert.match(titles, /achèvement 46 j après la date contractuelle/);
   assert.match(titles, /Glissement de 15 j/);
   assert.match(titles, /paiement\(s\) en retard/);
-  assert.match(titles, /Pièces de référence manquantes : Contrat, CCAG Travaux, BPU/);
+  assert.match(titles, /Pièces de référence manquantes : Contrat, CCAG Travaux, Convention de groupement/);
   assert.equal(insights[0].level, 'critique');
 
   // Courrier : relance de paiement → destinataire issu de la matrice de communication, .docx archivé

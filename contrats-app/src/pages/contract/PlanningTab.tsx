@@ -6,6 +6,7 @@ import { Timeline } from '../../components/Timeline';
 import { Badge, Empty, Modal, SubTabs, toast, toastError } from '../../components/ui';
 import { MILESTONE_FIELDS, PROGRAMME_FIELDS, WBS_FIELDS, isNec } from '../../schemas';
 import { daysFromToday, fmtDate, fmtDateTime, fmtMoney, relativeDays, todayIso } from '../../format';
+import { t } from '../../i18n';
 
 const dateCell = (key: string) => (r: Rec) => fmtDate(r[key]);
 const statusCell = (r: Rec) => <Badge value={r.status} />;
@@ -43,7 +44,7 @@ export function PlanningTab({ contract, openId, entity, onChange }: { contract: 
         <RegisterPanel
           table="programmes"
           contractId={contract.id}
-          title="Registre des programmes"
+          title={t('Registre des programmes')}
           addLabel="Programme soumis"
           emptyText="Enregistrez chaque programme soumis au Project Manager : sa réponse est attendue sous 2 semaines (cl. 31.3) et le prochain programme révisé selon l’intervalle du Contract Data (cl. 32.2)."
           fields={PROGRAMME_FIELDS}
@@ -77,7 +78,7 @@ function MilestonesPanel({ contract, openId, onChange }: { contract: Rec; openId
     <RegisterPanel
       table="milestones"
       contractId={contract.id}
-      title="Jalons et échéances du planning"
+      title={t('Jalons et échéances du planning')}
       addLabel="Ajouter un jalon"
       emptyText="Aucun jalon. Ajoutez les Key Dates, la Completion Date, les réunions… ou importez-les depuis la revue IA."
       fields={MILESTONE_FIELDS}
@@ -137,7 +138,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
       const res = await fetch(`/api/contracts/${contract.id}/schedule/import`, { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast(`${data.task_count} tâches importées, ${data.critical_count} critiques`);
+      toast(t('{n} tâches importées, {c} critiques', { n: data.task_count, c: data.critical_count }));
       setFile(null);
       setName('');
       load();
@@ -163,34 +164,34 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
     <div className="space-y-4">
       <form onSubmit={doImport} className="card flex flex-wrap items-end gap-3 p-3">
         <label className="min-w-[240px] flex-1">
-          <span className="label">Fichier planning : MS Project (.xml), Primavera P6 (.xer), Excel (.xlsx) ou CSV</span>
+          <span className="label">{t('Fichier planning : MS Project (.xml), Primavera P6 (.xer), Excel (.xlsx) ou CSV')}</span>
           <input className="input" type="file" accept=".xml,.xer,.xlsx,.csv,.txt,.mpp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </label>
         <label className="w-56">
-          <span className="label">Nom (ex. Programme rév. 3)</span>
+          <span className="label">{t('Nom (ex. Programme rév. 3)')}</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <button className="btn-primary" disabled={!file || busy}>
-          <Upload size={16} /> {busy ? 'Import…' : 'Importer'}
+          <Upload size={16} /> {busy ? t('Import…') : t('Importer')}
         </button>
         <p className="w-full text-xs text-slate-400">
-          MS Project : « Enregistrer sous → XML ». Excel/CSV : colonnes ID, Nom, Début, Fin, Prédécesseurs (ex. « 3;5FD+2j »), optionnellement Durée, WBS, %, Marge totale. Sans marge fournie, elle est calculée en jours calendaires.
+          {t('MS Project : « Enregistrer sous → XML ». Excel/CSV : colonnes ID, Nom, Début, Fin, Prédécesseurs (ex. « 3;5FD+2j »), optionnellement Durée, WBS, %, Marge totale. Sans marge fournie, elle est calculée en jours calendaires.')}
         </p>
       </form>
 
       {imports.length === 0 ? (
-        <Empty>Aucun planning importé.</Empty>
+        <Empty>{t('Aucun planning importé.')}</Empty>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="th">Planning</th>
-                <th className="th">Importé le</th>
-                <th className="th">Date d’état</th>
-                <th className="th">Fin prévue</th>
-                <th className="th">Tâches</th>
-                <th className="th">Critiques</th>
+                <th className="th">{t('Planning')}</th>
+                <th className="th">{t('Importé le')}</th>
+                <th className="th">{t('Date d’état')}</th>
+                <th className="th">{t('Fin prévue')}</th>
+                <th className="th">{t('Tâches')}</th>
+                <th className="th">{t('Critiques')}</th>
                 <th className="th" />
               </tr>
             </thead>
@@ -198,7 +199,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
               {imports.map((i) => {
                 const delta = daysBetween(contractEnd, i.planned_completion);
                 return (
-                  <tr key={i.id} className={`cursor-pointer ${selected?.id === i.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`} onClick={() => setSelected(i)}>
+                  <tr key={i.id} className={`cursor-pointer ${selected?.id === i.id ? 'bg-brand-50' : 'hover:bg-slate-50'}`} onClick={() => setSelected(i)}>
                     <td className="td font-medium">
                       {i.name}
                       <div className="text-xs font-normal text-slate-400">{i.format}</div>
@@ -207,7 +208,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
                     <td className="td">{fmtDate(i.data_date)}</td>
                     <td className="td whitespace-nowrap">
                       {fmtDate(i.planned_completion)}
-                      {delta !== null && delta !== 0 && <span className={`ml-1 text-xs ${delta > 0 ? 'text-red-600' : 'text-emerald-700'}`}>({delta > 0 ? '+' : ''}{delta} j / contrat)</span>}
+                      {delta !== null && delta !== 0 && <span className={`ml-1 text-xs ${delta > 0 ? 'text-red-600' : 'text-emerald-700'}`}>({delta > 0 ? '+' : ''}{delta} {t('j / contrat)')}</span>}
                     </td>
                     <td className="td">{i.task_count}</td>
                     <td className="td text-red-600">{i.critical_count}</td>
@@ -215,19 +216,19 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
                       <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           className="btn-ghost !p-1.5"
-                          title="Créer la WBS à partir de ce planning"
+                          title={t('Créer la WBS à partir de ce planning')}
                           onClick={async () => {
                             const { added } = await api.post(`/api/schedule_imports/${i.id}/wbs`, {});
-                            toast(added ? `${added} élément(s) WBS créés` : 'Aucun nouveau code WBS');
+                            toast(added ? t('{n} élément(s) WBS créés', { n: added }) : t('Aucun nouveau code WBS'));
                           }}
                         >
                           <Network size={16} />
                         </button>
                         <button
                           className="btn-ghost !p-1.5 text-red-600"
-                          title="Supprimer cet import"
+                          title={t('Supprimer cet import')}
                           onClick={async () => {
-                            if (!confirm(`Supprimer l’import « ${i.name} » ? (le fichier reste dans la GED)`)) return;
+                            if (!confirm(t('Supprimer l’import « {name} » ? (le fichier reste dans la GED)', { name: i.name }))) return;
                             await api.del(`/api/schedule_imports/${i.id}`);
                             load();
                             onChange();
@@ -245,7 +246,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
           {imports.length >= 2 && (
             <div className="border-t border-slate-100 p-2">
               <button className="btn-secondary" onClick={runCompare}>
-                <GitCompare size={16} /> Comparer les deux derniers plannings
+                <GitCompare size={16} /> {t('Comparer les deux derniers plannings')}
               </button>
             </div>
           )}
@@ -257,7 +258,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
       {compare && (
         <Modal title={`Comparaison : ${compare.from.name} → ${compare.to.name}`} onClose={() => setCompare(null)} wide>
           <p className="mb-3 text-sm">
-            Fin prévue : {fmtDate(compare.from.planned_completion)} → <b>{fmtDate(compare.to.planned_completion)}</b>{' '}
+            {t('Fin prévue :')} {fmtDate(compare.from.planned_completion)} → <b>{fmtDate(compare.to.planned_completion)}</b>{' '}
             {compare.completion_delta_days ? (
               <span className={compare.completion_delta_days > 0 ? 'text-red-600' : 'text-emerald-700'}>
                 ({compare.completion_delta_days > 0 ? '+' : ''}
@@ -267,19 +268,19 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
               '(inchangée)'
             )}
             {' · '}
-            {compare.added} tâche(s) ajoutée(s), {compare.removed} supprimée(s)
+            {compare.added} {t('tâche(s) ajoutée(s),')} {compare.removed} {t('supprimée(s)')}
           </p>
           {compare.changes.length === 0 ? (
-            <Empty>Aucune tâche commune n’a bougé.</Empty>
+            <Empty>{t('Aucune tâche commune n’a bougé.')}</Empty>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="th">Tâche</th>
-                  <th className="th">Fin avant</th>
-                  <th className="th">Fin après</th>
-                  <th className="th">Écart</th>
-                  <th className="th">Criticité</th>
+                  <th className="th">{t('Tâche')}</th>
+                  <th className="th">{t('Fin avant')}</th>
+                  <th className="th">{t('Fin après')}</th>
+                  <th className="th">{t('Écart')}</th>
+                  <th className="th">{t('Criticité')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -289,7 +290,7 @@ function SchedulesPanel({ contract, onChange }: { contract: Rec; onChange: () =>
                     <td className="td">{fmtDate(c.finish_before)}</td>
                     <td className="td">{fmtDate(c.finish_after)}</td>
                     <td className={`td ${c.delta_days > 0 ? 'text-red-600' : 'text-emerald-700'}`}>{c.delta_days ? `${c.delta_days > 0 ? '+' : ''}${c.delta_days} j` : '—'}</td>
-                    <td className="td text-xs">{c.is_critical !== c.was_critical ? (c.is_critical ? 'devient critique' : 'n’est plus critique') : c.is_critical ? 'critique' : ''}</td>
+                    <td className="td text-xs">{c.is_critical !== c.was_critical ? (c.is_critical ? t('devient critique') : t('n’est plus critique')) : c.is_critical ? 'critique' : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -323,40 +324,40 @@ function Gantt({ imp, contractEnd }: { imp: Rec; contractEnd?: string }) {
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h3 className="mr-auto font-semibold">{imp.name}</h3>
         <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={onlyCritical} onChange={(e) => setOnlyCritical(e.target.checked)} /> Chemin critique uniquement
+          <input type="checkbox" checked={onlyCritical} onChange={(e) => setOnlyCritical(e.target.checked)} /> {t('Chemin critique uniquement')}
         </label>
         <span className="text-xs text-slate-400">
-          {shown.length} / {tasks.length} tâches · <span className="text-red-600">■ critique</span> · <span className="text-indigo-500">■ non critique</span> · ┄ référence · <span className="text-red-400">| aujourd’hui</span>
-          {contractEnd && <span className="text-slate-700"> · ▌ fin contractuelle</span>}
+          {shown.length} / {tasks.length} {t('tâches ·')} <span className="text-red-600">{t('■ critique')}</span> · <span className="text-brand-500">{t('■ non critique')}</span> {t('· ┄ référence ·')} <span className="text-red-400">{t('| aujourd’hui')}</span>
+          {contractEnd && <span className="text-slate-700"> {t('· ▌ fin contractuelle')}</span>}
         </span>
       </div>
       {shown.length === 0 ? (
-        <Empty>Aucune tâche critique dans ce planning.</Empty>
+        <Empty>{t('Aucune tâche critique dans ce planning.')}</Empty>
       ) : (
         <div className="space-y-0.5 text-xs">
-          {shown.map((t) => (
-            <div key={t.id} className="flex items-center gap-2">
-              <div className="w-64 shrink-0 truncate" title={`${t.wbs_code ?? ''} ${t.name}`} style={{ paddingLeft: `${Math.max((t.outline_level ?? 1) - 1, 0) * 8}px` }}>
-                <span className={t.is_summary ? 'font-semibold' : ''}>{t.name}</span>
+          {shown.map((task) => (
+            <div key={task.id} className="flex items-center gap-2">
+              <div className="w-64 shrink-0 truncate" title={`${task.wbs_code ?? ''} ${task.name}`} style={{ paddingLeft: `${Math.max((task.outline_level ?? 1) - 1, 0) * 8}px` }}>
+                <span className={task.is_summary ? 'font-semibold' : ''}>{task.name}</span>
               </div>
-              <div className="w-20 shrink-0 text-right tabular-nums text-slate-500" title="Marge totale (jours)">
-                {t.is_summary ? '' : `${t.total_float_days ?? '—'} j`}
+              <div className="w-20 shrink-0 text-right tabular-nums text-slate-500" title={t('Marge totale (jours)')}>
+                {task.is_summary ? '' : `${task.total_float_days ?? '—'} j`}
               </div>
               <div className="relative h-4 flex-1 rounded bg-slate-50">
                 <div className="absolute bottom-0 top-0 w-px bg-red-400" style={{ left: `${x(todayIso())}%` }} />
                 {contractEnd && <div className="absolute -bottom-0.5 -top-0.5 w-0.5 bg-slate-800" style={{ left: `${x(contractEnd)}%` }} />}
-                {t.baseline_start && t.baseline_finish && (
-                  <div className="absolute bottom-0 h-0.5 border-b border-dashed border-slate-400" style={{ left: `${x(t.baseline_start)}%`, width: `${Math.max(x(t.baseline_finish) - x(t.baseline_start), 0.3)}%` }} />
+                {task.baseline_start && task.baseline_finish && (
+                  <div className="absolute bottom-0 h-0.5 border-b border-dashed border-slate-400" style={{ left: `${x(task.baseline_start)}%`, width: `${Math.max(x(task.baseline_finish) - x(task.baseline_start), 0.3)}%` }} />
                 )}
-                {t.is_milestone ? (
-                  <div className={`absolute top-0.5 h-3 w-3 -translate-x-1/2 rotate-45 ${t.is_critical ? 'bg-red-600' : 'bg-indigo-500'}`} style={{ left: `${x(t.finish)}%` }} title={`${t.name} : ${fmtDate(t.finish)}`} />
+                {task.is_milestone ? (
+                  <div className={`absolute top-0.5 h-3 w-3 -translate-x-1/2 rotate-45 ${task.is_critical ? 'bg-red-600' : 'bg-brand-500'}`} style={{ left: `${x(task.finish)}%` }} title={`${task.name} : ${fmtDate(task.finish)}`} />
                 ) : (
                   <div
-                    className={`absolute top-0.5 h-3 rounded-sm ${t.is_summary ? 'bg-slate-700' : t.is_critical ? 'bg-red-500' : 'bg-indigo-400'}`}
-                    style={{ left: `${x(t.start)}%`, width: `${Math.max(x(t.finish) - x(t.start) + 100 / ((max - min) / 86400000), 0.4)}%` }}
-                    title={`${t.name} : ${fmtDate(t.start)} → ${fmtDate(t.finish)}${t.percent_complete != null ? ` · ${t.percent_complete} %` : ''}`}
+                    className={`absolute top-0.5 h-3 rounded-sm ${task.is_summary ? 'bg-slate-700' : task.is_critical ? 'bg-red-500' : 'bg-brand-400'}`}
+                    style={{ left: `${x(task.start)}%`, width: `${Math.max(x(task.finish) - x(task.start) + 100 / ((max - min) / 86400000), 0.4)}%` }}
+                    title={`${task.name} : ${fmtDate(task.start)} → ${fmtDate(task.finish)}${task.percent_complete != null ? ` · ${task.percent_complete} %` : ''}`}
                   >
-                    {t.percent_complete ? <div className="h-full rounded-sm bg-black/25" style={{ width: `${Math.min(t.percent_complete, 100)}%` }} /> : null}
+                    {task.percent_complete ? <div className="h-full rounded-sm bg-black/25" style={{ width: `${Math.min(task.percent_complete, 100)}%` }} /> : null}
                   </div>
                 )}
               </div>
@@ -373,7 +374,7 @@ function WbsPanel({ contract, onChange }: { contract: Rec; onChange: () => void 
     <RegisterPanel
       table="wbs_items"
       contractId={contract.id}
-      title="Structure de découpage (WBS)"
+      title={t('Structure de découpage (WBS)')}
       addLabel="Ajouter un élément"
       emptyText="Créez la WBS à la main ou depuis un planning importé (bouton réseau dans la liste des plannings). Les codes WBS servent aussi dans la matrice RACI."
       fields={WBS_FIELDS}

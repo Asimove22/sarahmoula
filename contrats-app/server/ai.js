@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSettings } from './db.js';
 
 export const AI_DEFAULTS = {
-  ai_mode: 'ollama', // 'ollama' | 'off'
+  ai_mode: 'ollama', // moteur par défaut : 'ollama' | 'claude' | 'off'
   ollama_url: 'http://localhost:11434',
   ollama_model: 'qwen2.5:7b',
   claude_model: 'claude-opus-5-5',
@@ -21,12 +21,39 @@ export class AiError extends Error {
 }
 
 /** Quel moteur utiliser pour ce contrat ? */
+/** Moteur effectif : le réglage du contrat s'il en a un, sinon le moteur choisi dans l'en-tête. */
+export function effectiveMode(db, contract) {
+  const s = { ...AI_DEFAULTS, ...getSettings(db) };
+  return contract?.ai_provider || s.ai_mode || 'ollama';
+}
+
 export function resolveProvider(db, contract) {
   const s = { ...AI_DEFAULTS, ...getSettings(db) };
-  if (contract?.ai_allow_cloud && s.claude_api_key) return { name: 'claude', settings: s };
-  if (s.ai_mode === 'ollama') return { name: 'ollama', settings: s };
-  if (contract?.ai_allow_cloud && !s.claude_api_key) throw new AiError('Ce contrat autorise Claude, mais aucune clé API n’est enregistrée (Paramètres).');
-  throw new AiError('L’assistant IA est désactivé (Paramètres).');
+  const mode = effectiveMode(db, contract);
+  if (mode === 'claude') {
+    if (!s.claude_api_key) throw new AiError('Claude est sélectionné, mais aucune clé API n’est enregistrée (Paramètres).');
+    return { name: 'claude', settings: s };
+  }
+  if (mode === 'ollama') return { name: 'ollama', settings: s };
+  throw new AiError('L’assistant IA est désactivé (sélecteur IA en haut de l’écran).');
+}
+
+/** État des moteurs pour le sélecteur de l'en-tête (Ollama joignable ? modèle installé ? clé Claude ?). */
+export async function aiStatus(db) {
+  const s = { ...AI_DEFAULTS, ...getSettings(db) };
+  const ollama = { ok: false, model_present: false, models: [] };
+  try {
+    const res = await fetch(`${s.ollama_url.replace(/\/$/, '')}/api/tags`, { signal: AbortSignal.timeout(1500) });
+    if (res.ok) {
+      const data = await res.json();
+      ollama.ok = true;
+      ollama.models = (data.models ?? []).map((m) => m.name);
+      ollama.model_present = ollama.models.some((m) => m === s.ollama_model || m.split(':')[0] === s.ollama_model.split(':')[0]);
+    }
+  } catch {
+    // Ollama non démarré
+  }
+  return { mode: s.ai_mode, ollama: { ...ollama, url: s.ollama_url, model: s.ollama_model }, claude: { configured: Boolean(s.claude_api_key), model: s.claude_model } };
 }
 
 async function complete(provider, { system, prompt, schema }) {

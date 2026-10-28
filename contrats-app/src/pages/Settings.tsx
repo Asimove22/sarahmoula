@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Cloud, HardDrive, PlugZap, Power, Save, ScanText } from 'lucide-react';
 import { api, type Rec } from '../api';
 import { toast, toastError } from '../components/ui';
+import { t } from '../i18n';
 
 const CLAUDE_MODELS = [
   { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (recommandé, le plus fiable)' },
@@ -25,19 +26,20 @@ export function Settings() {
   if (stopped)
     return (
       <div className="card max-w-xl p-6 text-sm">
-        <p className="font-semibold">L’application est arrêtée.</p>
-        <p className="mt-1 text-slate-500">Vous pouvez fermer cette fenêtre. Pour la relancer : icône « Gestion contractuelle » du Bureau.</p>
+        <p className="font-semibold">{t('L’application est arrêtée.')}</p>
+        <p className="mt-1 text-slate-500">{t('Vous pouvez fermer cette fenêtre. Pour la relancer : icône « Gestion contractuelle » du Bureau.')}</p>
       </div>
     );
-  if (!s) return <div className="text-sm text-slate-500">Chargement…</div>;
+  if (!s) return <div className="text-sm text-slate-500">{t('Chargement…')}</div>;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
 
   const save = async (extra: Rec = {}) => {
     try {
-      const { has_claude_key: _ignored, ...values } = s;
+      // ai_mode est piloté par le sélecteur de l'en-tête : on ne le renvoie pas pour ne pas l'écraser.
+      const { has_claude_key: _ignored, ai_mode: _mode, ...values } = s;
       setS(await api.put<Rec>('/api/settings', { ...values, claude_api_key: key || undefined, ...extra }));
       setKey('');
-      toast('Paramètres enregistrés');
+      toast(t('Paramètres enregistrés'));
     } catch (e) {
       toastError(e);
     }
@@ -48,7 +50,7 @@ export function Settings() {
     try {
       await save();
       const out = await api.post('/api/ai/test', { provider });
-      toast(`Connexion ${provider === 'claude' ? 'Claude' : 'Ollama'} réussie (réponse : ${out.reply})`);
+      toast(`Connexion ${provider === 'claude' ? t('Claude') : t('Ollama')} réussie (réponse : ${out.reply})`);
     } catch (e) {
       toastError(e);
     } finally {
@@ -58,21 +60,21 @@ export function Settings() {
 
   const field = (k: string, label: string, props: Rec = {}) => (
     <label className="block">
-      <span className="label">{label}</span>
+      <span className="label">{t(label)}</span>
       {props.multiline ? (
         <textarea className="input min-h-[70px]" value={s[k] ?? ''} onChange={(e) => set(k, e.target.value)} />
       ) : (
-        <input className="input" value={s[k] ?? ''} placeholder={props.placeholder} onChange={(e) => set(k, e.target.value)} />
+        <input className="input" value={s[k] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={(e) => set(k, e.target.value)} />
       )}
     </label>
   );
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-xl font-semibold">Paramètres</h1>
+      <h1 className="text-xl font-semibold">{t('Paramètres')}</h1>
 
       <section className="card space-y-3 p-5">
-        <h2 className="font-semibold">En-tête des courriers</h2>
+        <h2 className="font-semibold">{t('En-tête des courriers')}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {field('company_name', 'Société')}
           {field('city', 'Ville (pour « Lyon, le … »)')}
@@ -84,121 +86,126 @@ export function Settings() {
 
       <section className="card space-y-3 p-5">
         <h2 className="flex items-center gap-2 font-semibold">
-          <HardDrive size={18} /> IA locale (Ollama) – utilisée par défaut
+          <HardDrive size={18} /> {t('IA locale (Ollama)')}
         </h2>
         <p className="text-sm text-slate-500">
-          Gratuite, rien ne quitte votre PC. Installation : <a className="text-indigo-700 underline" href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a>, puis dans un terminal : <code className="rounded bg-slate-100 px-1">ollama pull {s.ollama_model}</code>. Prévoir 16 Go de RAM.
+          {t('Gratuite, rien ne quitte votre PC. Installation :')} <a className="text-brand-700 underline" href="https://ollama.com/download" target="_blank" rel="noreferrer">{t('ollama.com/download')}</a>{t(', puis dans un terminal :')} <code className="rounded bg-slate-100 px-1">{t('ollama pull')} {s.ollama_model}</code>{t('. Prévoir 16 Go de RAM.')}
         </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="block">
-            <span className="label">Assistant IA</span>
-            <select className="input" value={s.ai_mode} onChange={(e) => set('ai_mode', e.target.value)}>
-              <option value="ollama">Activé (Ollama)</option>
-              <option value="off">Désactivé</option>
-            </select>
-          </label>
+        <p className="rounded bg-slate-50 p-2 text-xs text-slate-600">
+          {t('Le moteur actif se choisit dans la barre rouge en haut de l’écran (Locale / Claude / Off). Chaque contrat peut imposer son propre moteur (fiche contrat → Modifier → Moteur d’IA), par exemple « toujours en local » pour un marché confidentiel.')}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
           {field('ollama_url', 'Adresse Ollama')}
           {field('ollama_model', 'Modèle', { placeholder: 'qwen2.5:7b' })}
         </div>
         <button className="btn-secondary" onClick={() => test('ollama')} disabled={testing !== ''}>
-          <PlugZap size={16} /> {testing === 'ollama' ? 'Test…' : 'Tester Ollama'}
+          <PlugZap size={16} /> {testing === 'ollama' ? t('Test…') : t('Tester Ollama')}
         </button>
       </section>
 
       <section className="card space-y-3 p-5">
         <h2 className="flex items-center gap-2 font-semibold">
-          <Cloud size={18} /> Claude (cloud) – activable contrat par contrat
+          <Cloud size={18} /> {t('Claude (cloud)')}
         </h2>
         <p className="text-sm text-slate-500">
-          Analyse de meilleure qualité. Les extraits de documents sont envoyés à l’API Anthropic, facturée à l’usage. Claude n’est utilisé que pour les contrats où la case « Autoriser l’IA cloud » est cochée (fiche contrat → Modifier).
-          Clé API : <a className="text-indigo-700 underline" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>.
+          {t('Analyse de meilleure qualité. Les extraits de documents sont envoyés à l’API Anthropic, facturée à l’usage. Claude est utilisé quand il est sélectionné dans la barre du haut, sauf pour les contrats réglés sur « toujours en local ». Clé API :')} <a className="text-brand-700 underline" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">{t('console.anthropic.com')}</a>.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="label">Clé API {s.has_claude_key && <span className="text-emerald-700">(enregistrée)</span>}</span>
-            <input className="input" type="password" autoComplete="off" placeholder={s.has_claude_key ? '•••••••• (laisser vide pour conserver)' : 'sk-ant-…'} value={key} onChange={(e) => setKey(e.target.value)} />
+            <span className="label">{t('Clé API')} {s.has_claude_key && <span className="text-emerald-700">{t('(enregistrée)')}</span>}</span>
+            <input className="input" type="password" autoComplete="off" placeholder={s.has_claude_key ? t('•••••••• (laisser vide pour conserver)') : 'sk-ant-…'} value={key} onChange={(e) => setKey(e.target.value)} />
           </label>
           <label className="block">
-            <span className="label">Modèle</span>
+            <span className="label">{t('Modèle')}</span>
             <select className="input" value={s.claude_model} onChange={(e) => set('claude_model', e.target.value)}>
               {CLAUDE_MODELS.map((m) => (
                 <option key={m.value} value={m.value}>
-                  {m.label}
+                  {t(m.label)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className="label">Niveau de réflexion</span>
+            <span className="label">{t('Niveau de réflexion')}</span>
             <select className="input" value={s.claude_effort} onChange={(e) => set('claude_effort', e.target.value)}>
-              <option value="low">Faible (rapide, économique)</option>
-              <option value="medium">Moyen (recommandé)</option>
-              <option value="high">Élevé (analyses complexes, plus cher)</option>
+              <option value="low">{t('Faible (rapide, économique)')}</option>
+              <option value="medium">{t('Moyen (recommandé)')}</option>
+              <option value="high">{t('Élevé (analyses complexes, plus cher)')}</option>
             </select>
           </label>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={() => test('claude')} disabled={testing !== '' || (!s.has_claude_key && !key)}>
-            <PlugZap size={16} /> {testing === 'claude' ? 'Test…' : 'Tester Claude'}
+            <PlugZap size={16} /> {testing === 'claude' ? t('Test…') : t('Tester Claude')}
           </button>
           {s.has_claude_key && (
-            <button className="btn-danger" onClick={() => confirm('Supprimer la clé API enregistrée ?') && save({ remove_claude_key: true })}>
-              Supprimer la clé
+            <button className="btn-danger" onClick={() => confirm(t('Supprimer la clé API enregistrée ?')) && save({ remove_claude_key: true })}>
+              {t('Supprimer la clé')}
             </button>
           )}
         </div>
-        <p className="text-xs text-slate-400">La clé est stockée dans la base locale (data/contrats.db) et n’est jamais renvoyée à l’interface.</p>
+        <p className="text-xs text-slate-400">{t('La clé est stockée dans la base locale (data/contrats.db) et n’est jamais renvoyée à l’interface.')}</p>
       </section>
 
       <section className="card space-y-3 p-5">
         <h2 className="flex items-center gap-2 font-semibold">
-          <ScanText size={18} /> Automatismes
+          <ScanText size={18} /> {t('Automatismes')}
         </h2>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={s.ocr_mode !== 'off'} onChange={(e) => set('ocr_mode', e.target.checked ? 'on' : 'off')} />
           <span>
-            <b>OCR des documents scannés</b> (PDF image, photos) — local, hors ligne, français et anglais. Le texte reconnu devient consultable par la recherche et l’IA.
+            <b>{t('OCR des documents scannés')}</b> {t('(PDF image, photos) — local, hors ligne, français et anglais. Le texte reconnu devient consultable par la recherche et l’IA.')}
           </span>
         </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={s.review_watch_ai !== 'off'} onChange={(e) => set('review_watch_ai', e.target.checked ? 'on' : 'off')} />
           <span>
-            <b>Veille de revue par l’IA</b> — à chaque nouvel événement (courrier, EW, CE, avenant, planning, pièce contractuelle), l’IA propose des mises à jour de la revue. Les règles métier fonctionnent toujours, même décoché. Avec Claude, chaque événement consomme un peu de crédit API.
+            <b>{t('Veille de revue par l’IA')}</b> {t('— à chaque nouvel événement (courrier, EW, CE, avenant, planning, pièce contractuelle), l’IA propose des mises à jour de la revue. Les règles métier fonctionnent toujours, même décoché. Avec Claude, chaque événement consomme un peu de crédit API.')}
           </span>
         </label>
       </section>
 
+      <section className="card space-y-3 p-5">
+        <h2 className="font-semibold">{t('Marchés publics')}</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {field('ecb_rate', 'Taux de la BCE (%)', { placeholder: 'ex. 2.15' })}
+        </div>
+        <p className="text-xs text-slate-500">
+          {t('Taux d’intérêt des opérations principales de refinancement de la BCE en vigueur au premier jour du semestre où les intérêts ont commencé à courir. Les intérêts moratoires sont calculés à ce taux majoré de 8 points (CCP, art. R2192-31). Mettez-le à jour chaque semestre.')}
+        </p>
+      </section>
+
       <button className="btn-primary" onClick={() => save()}>
-        <Save size={16} /> Enregistrer
+        <Save size={16} /> {t('Enregistrer')}
       </button>
 
       <section className="card space-y-3 p-5 text-sm">
-        <h2 className="font-semibold">Application</h2>
-        <p className="text-slate-600">Version {health?.version ?? '—'} · données stockées localement.</p>
+        <h2 className="font-semibold">{t('Application')}</h2>
+        <p className="text-slate-600">{t('Version')} {health?.version ?? '—'} {t('· données stockées localement.')}</p>
         <div>
-          <div className="label">Sauvegardes automatiques de la base (une par jour, 14 conservées)</div>
+          <div className="label">{t('Sauvegardes automatiques de la base (une par jour, 14 conservées)')}</div>
           {backups.length ? (
             <ul className="text-xs text-slate-600">
               {backups.slice(0, 5).map((b) => (
                 <li key={b.name}>
-                  {`data\\sauvegardes-auto\\${b.name}`} ({Math.round(b.size / 1024)} Ko)
+                  {`data\\sauvegardes-auto\\${b.name}`} ({Math.round(b.size / 1024)} {t('Ko)')}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-slate-400">Aucune pour l’instant.</p>
+            <p className="text-xs text-slate-400">{t('Aucune pour l’instant.')}</p>
           )}
-          <p className="mt-1 text-xs text-slate-400">Les documents ne sont jamais modifiés ni effacés (corbeille). Pour une copie complète sur clé USB : Sauvegarder.bat.</p>
+          <p className="mt-1 text-xs text-slate-400">{t('Les documents ne sont jamais modifiés ni effacés (corbeille). Pour une copie complète sur clé USB : Sauvegarder.bat.')}</p>
         </div>
         <button
           className="btn-danger"
           onClick={async () => {
-            if (!confirm('Arrêter l’application ? Les alertes ne seront plus calculées jusqu’au prochain lancement.')) return;
+            if (!confirm(t('Arrêter l’application ? Les alertes ne seront plus calculées jusqu’au prochain lancement.'))) return;
             await api.post('/api/system/shutdown', {}).catch(() => {});
             setStopped(true);
           }}
         >
-          <Power size={16} /> Arrêter l’application
+          <Power size={16} /> {t('Arrêter l’application')}
         </button>
       </section>
     </div>

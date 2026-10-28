@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bot, Cloud, HardDrive, Send } from 'lucide-react';
 import { api, fileUrl, type Rec } from '../../api';
 import { toastError } from '../../components/ui';
+import { t } from '../../i18n';
 
 const SUGGESTIONS = [
   'Quel est le régime des pénalités de retard et leur plafond ?',
@@ -37,14 +38,14 @@ export function AssistantTab({ contract }: { contract: Rec }) {
     <div className="space-y-4">
       <div className="card p-4">
         <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-          <Bot size={18} className="text-indigo-600" />
-          {contract.ai_allow_cloud ? (
+          <Bot size={18} className="text-brand-600" />
+          {contract.ai_effective === 'claude' ? (
             <span className="flex items-center gap-1">
-              <Cloud size={14} /> Claude (cloud) : les extraits pertinents sont envoyés à l’API Anthropic.
+              <Cloud size={14} /> {t('Claude (cloud) : les extraits pertinents sont envoyés à l’API Anthropic.')}
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <HardDrive size={14} /> IA locale (Ollama) : rien ne quitte votre PC.
+              <HardDrive size={14} /> {t('IA locale (Ollama) : rien ne quitte votre PC.')}
             </span>
           )}
         </div>
@@ -55,15 +56,15 @@ export function AssistantTab({ contract }: { contract: Rec }) {
             ask(question);
           }}
         >
-          <input className="input flex-1" placeholder="Posez une question sur ce contrat…" value={question} onChange={(e) => setQuestion(e.target.value)} disabled={busy} />
+          <input className="input flex-1" placeholder={t('Posez une question sur ce contrat…')} value={question} onChange={(e) => setQuestion(e.target.value)} disabled={busy} />
           <button className="btn-primary" disabled={busy || !question.trim()}>
-            <Send size={16} /> {busy ? 'Réflexion…' : 'Demander'}
+            <Send size={16} /> {busy ? t('Réflexion…') : t('Demander')}
           </button>
         </form>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((s) => (
-            <button key={s} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-indigo-50 hover:text-indigo-700" onClick={() => ask(s)} disabled={busy}>
-              {s}
+            <button key={s} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-brand-50 hover:text-brand-700" onClick={() => ask(t(s))} disabled={busy}>
+              {t(s)}
             </button>
           ))}
         </div>
@@ -75,23 +76,23 @@ export function AssistantTab({ contract }: { contract: Rec }) {
           <div className="whitespace-pre-line text-sm leading-relaxed">{h.answer}</div>
           {h.sources.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-2 text-xs">
-              <span className="text-slate-400">Sources :</span>
+              <span className="text-slate-400">{t('Sources :')}</span>
               {h.sources.map((s: Rec) => (
-                <a key={s.id} className="text-indigo-700 hover:underline" href={fileUrl(s)} target="_blank" rel="noreferrer">
+                <a key={s.id} className="text-brand-700 hover:underline" href={fileUrl(s)} target="_blank" rel="noreferrer">
                   {s.title}
                 </a>
               ))}
             </div>
           )}
-          <div className="text-[11px] text-slate-400">Réponse générée par {h.provider === 'claude' ? 'Claude' : 'l’IA locale'} : vérifiez dans le document source avant de vous engager.</div>
+          <div className="text-[11px] text-slate-400">{t('Réponse générée par')} {h.provider === 'claude' ? t('Claude') : t('l’IA locale')} {t(': vérifiez dans le document source avant de vous engager.')}</div>
         </div>
       ))}
 
       {history.length === 0 && (
         <p className="text-sm text-slate-500">
-          L’assistant lit les documents texte de la GED (PDF natifs, Word, Excel, emails). Pour une analyse complète des clauses, utilisez plutôt l’onglet{' '}
-          <Link className="text-indigo-700 underline" to={`/contrats/${contract.id}?tab=revue`}>
-            Revue
+          {t('L’assistant lit les documents texte de la GED (PDF natifs, Word, Excel, emails). Pour une analyse complète des clauses, utilisez plutôt l’onglet')}{' '}
+          <Link className="text-brand-700 underline" to={`/contrats/${contract.id}?tab=revue`}>
+            {t('Revue')}
           </Link>
           .
         </p>

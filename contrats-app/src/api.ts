@@ -1,7 +1,12 @@
+import { getLang } from './i18n';
+
 export type Rec = Record<string, any>;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
+  // La langue est transmise au serveur pour les points d'attention, échéances et messages d'erreur.
+  const headers = new Headers(init?.headers);
+  headers.set('X-Lang', getLang());
+  const res = await fetch(path, { ...init, headers });
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json() : await res.text();
   if (!res.ok) throw new Error((isJson && data?.error) || `Erreur ${res.status}`);

@@ -4,6 +4,7 @@ import type { Rec } from '../api';
 import { ENTITY_LABELS, TAB_FOR_ENTITY } from '../schemas';
 import { daysFromToday, fmtDate, relativeDays } from '../format';
 import { Empty } from './ui';
+import { t } from '../i18n';
 
 export const deadlineLink = (d: Rec) =>
   `/contrats/${d.contract_id}?tab=${TAB_FOR_ENTITY[d.entity]}${d.entity === 'contracts' ? '' : `&open=${d.entity_id}&e=${d.entity}`}`;
@@ -16,7 +17,7 @@ function tone(d: Rec) {
 }
 
 export function DeadlineList({ items, showContract = true, empty = 'Aucune échéance.' }: { items: Rec[]; showContract?: boolean; empty?: string }) {
-  if (!items.length) return <Empty>{empty}</Empty>;
+  if (!items.length) return <Empty>{t(empty)}</Empty>;
   return (
     <ul className="divide-y divide-slate-100">
       {items.map((d, i) => (
@@ -30,7 +31,7 @@ export function DeadlineList({ items, showContract = true, empty = 'Aucune éch�
                 <span className="truncate">{d.title}</span>
               </div>
               <div className="truncate text-xs text-slate-400">
-                {ENTITY_LABELS[d.entity]}
+                {t(ENTITY_LABELS[d.entity] ?? d.entity)}
                 {showContract && ` · ${d.contract_reference ? `${d.contract_reference} – ` : ''}${d.contract_title}`}
               </div>
             </div>

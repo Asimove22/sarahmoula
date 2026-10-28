@@ -5,6 +5,7 @@ import { DOCUMENT_CATEGORIES, DOCUMENT_FIELDS } from '../schemas';
 import { fmtDate, fmtDateTime, fmtSize } from '../format';
 import { EntityForm } from './EntityForm';
 import { Empty, FileDrop, Modal, toast, toastError } from './ui';
+import { t } from '../i18n';
 
 export function DocumentsPanel({
   contractId,
@@ -45,7 +46,7 @@ export function DocumentsPanel({
   const rerunOcr = async (doc: Rec) => {
     try {
       await api.post(`/api/documents/${doc.id}/ocr`, {});
-      toast('OCR relancé : le texte sera disponible dans quelques instants');
+      toast(t('OCR relancé : le texte sera disponible dans quelques instants'));
       load();
     } catch (e) {
       toastError(e);
@@ -56,7 +57,7 @@ export function DocumentsPanel({
     setBusy(true);
     try {
       const saved = await api.upload('/api/documents/upload', files, { contract_id: contractId, category: uploadCategory, ...filter, ...extra });
-      toast(saved.length > 1 ? `${saved.length} documents archivés` : `« ${saved[0].title} » archivé (v${saved[0].version})`);
+      toast(saved.length > 1 ? t('{n} documents archivés', { n: saved.length }) : t('« {title} » archivé (v{version})', { title: saved[0].title, version: saved[0].version }));
       load();
     } catch (e) {
       toastError(e);
@@ -66,7 +67,7 @@ export function DocumentsPanel({
   };
 
   const remove = async (doc: Rec) => {
-    if (!confirm(`Supprimer « ${doc.title} » (v${doc.version}) ?\nLe fichier sera déplacé dans le dossier corbeille.`)) return;
+    if (!confirm(t('Supprimer « {title} » (v{version}) ?\nLe fichier sera déplacé dans le dossier corbeille.', { title: doc.title, version: doc.version }))) return;
     await api.del(`/api/documents/${doc.id}`).catch(toastError);
     load();
   };
@@ -83,7 +84,7 @@ export function DocumentsPanel({
     <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <label className="w-56">
-          <span className="label">Catégorie des fichiers déposés</span>
+          <span className="label">{t('Catégorie des fichiers déposés')}</span>
           <select className="input" value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)}>
             {DOCUMENT_CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
@@ -91,15 +92,15 @@ export function DocumentsPanel({
           </select>
         </label>
         <div className="min-w-[240px] flex-1">
-          <FileDrop compact onFiles={(f) => upload(f)} label={busy ? 'Envoi en cours…' : 'Glissez vos fichiers ici ou cliquez pour parcourir'} />
+          <FileDrop compact onFiles={(f) => upload(f)} label={busy ? t('Envoi en cours…') : t('Glissez vos fichiers ici ou cliquez pour parcourir')} />
         </div>
       </div>
 
       {!compact && docs.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          <input className="input max-w-xs" placeholder="Filtrer…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input max-w-xs" placeholder={t('Filtrer…')} value={query} onChange={(e) => setQuery(e.target.value)} />
           <select className="input max-w-[220px]" value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Toutes catégories ({docs.length})</option>
+            <option value="">{t('Toutes catégories (')}{docs.length})</option>
             {categories.map((c) => (
               <option key={c} value={c}>
                 {c} ({docs.filter((d) => d.category === c).length})
@@ -110,25 +111,25 @@ export function DocumentsPanel({
       )}
 
       {shown.length === 0 ? (
-        <Empty>Aucun document.</Empty>
+        <Empty>{t('Aucun document.')}</Empty>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="th">Document</th>
-                <th className="th">Catégorie</th>
-                <th className="th">Date</th>
-                <th className="th">Version</th>
-                {!compact && <th className="th">Taille</th>}
-                <th className="th text-right">Actions</th>
+                <th className="th">{t('Document')}</th>
+                <th className="th">{t('Catégorie')}</th>
+                <th className="th">{t('Date')}</th>
+                <th className="th">{t('Version')}</th>
+                {!compact && <th className="th">{t('Taille')}</th>}
+                <th className="th text-right">{t('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {shown.map((d) => (
                 <tr key={d.id} className="hover:bg-slate-50">
                   <td className="td">
-                    <a href={fileUrl(d)} target="_blank" rel="noreferrer" className="font-medium text-indigo-700 hover:underline">
+                    <a href={fileUrl(d)} target="_blank" rel="noreferrer" className="font-medium text-brand-700 hover:underline">
                       {d.title}
                     </a>
                     <div className="text-xs text-slate-400">
@@ -137,11 +138,11 @@ export function DocumentsPanel({
                       <TextStatus doc={d} />
                     </div>
                   </td>
-                  <td className="td whitespace-nowrap">{d.category}</td>
+                  <td className="td whitespace-nowrap">{t(d.category)}</td>
                   <td className="td whitespace-nowrap">{fmtDate(d.doc_date || d.created_at)}</td>
                   <td className="td whitespace-nowrap">
                     {d.versions_count > 1 ? (
-                      <button className="text-indigo-700 hover:underline" onClick={() => showVersions(d)}>
+                      <button className="text-brand-700 hover:underline" onClick={() => showVersions(d)}>
                         v{d.version} / {d.versions_count}
                       </button>
                     ) : (
@@ -151,15 +152,15 @@ export function DocumentsPanel({
                   {!compact && <td className="td whitespace-nowrap">{fmtSize(d.size)}</td>}
                   <td className="td">
                     <div className="flex justify-end gap-0.5">
-                      <a className="btn-ghost !p-1.5" title="Ouvrir" href={fileUrl(d)} target="_blank" rel="noreferrer">
+                      <a className="btn-ghost !p-1.5" title={t('Ouvrir')} href={fileUrl(d)} target="_blank" rel="noreferrer">
                         <Eye size={16} />
                       </a>
-                      <a className="btn-ghost !p-1.5" title="Télécharger" href={fileUrl(d, true)}>
+                      <a className="btn-ghost !p-1.5" title={t('Télécharger')} href={fileUrl(d, true)}>
                         <Download size={16} />
                       </a>
                       <button
                         className="btn-ghost !p-1.5"
-                        title="Déposer une nouvelle version"
+                        title={t('Déposer une nouvelle version')}
                         onClick={() => {
                           versionParent.current = d;
                           versionInput.current?.click();
@@ -167,18 +168,18 @@ export function DocumentsPanel({
                       >
                         <FilePlus2 size={16} />
                       </button>
-                      <button className="btn-ghost !p-1.5" title="Historique des versions" onClick={() => showVersions(d)}>
+                      <button className="btn-ghost !p-1.5" title={t('Historique des versions')} onClick={() => showVersions(d)}>
                         <History size={16} />
                       </button>
                       {/\.(pdf|png|jpe?g|bmp|tiff?)$/i.test(d.original_name) && ['vide', 'ocr', 'ocr vide', 'ocr échoué', 'non supporté'].includes(d.text_status) && (
-                        <button className="btn-ghost !p-1.5" title="Relancer la reconnaissance de texte (OCR)" onClick={() => rerunOcr(d)}>
+                        <button className="btn-ghost !p-1.5" title={t('Relancer la reconnaissance de texte (OCR)')} onClick={() => rerunOcr(d)}>
                           <ScanText size={16} />
                         </button>
                       )}
-                      <button className="btn-ghost !p-1.5" title="Modifier les informations" onClick={() => setEditing(d)}>
+                      <button className="btn-ghost !p-1.5" title={t('Modifier les informations')} onClick={() => setEditing(d)}>
                         <Pencil size={16} />
                       </button>
-                      <button className="btn-ghost !p-1.5 text-red-600" title="Supprimer" onClick={() => remove(d)}>
+                      <button className="btn-ghost !p-1.5 text-red-600" title={t('Supprimer')} onClick={() => remove(d)}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -227,20 +228,20 @@ export function DocumentsPanel({
             {versionsOf.rows.map((v) => (
               <li key={v.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div>
-                  <span className="font-medium">v{v.version}</span> {v.is_current ? <span className="text-xs text-emerald-700">(courante)</span> : null}
+                  <span className="font-medium">v{v.version}</span> {v.is_current ? <span className="text-xs text-emerald-700">{t('(courante)')}</span> : null}
                   <div className="text-xs text-slate-500">
-                    {v.original_name} · déposé le {fmtDateTime(v.created_at)} · {fmtSize(v.size)}
+                    {v.original_name} {t('· déposé le')} {fmtDateTime(v.created_at)} · {fmtSize(v.size)}
                   </div>
-                  <div className="font-mono text-[10px] text-slate-400" title="Empreinte SHA-256 (preuve d'intégrité)">
-                    SHA-256 {v.sha256}
+                  <div className="font-mono text-[10px] text-slate-400" title={t('Empreinte SHA-256 (preuve d\'intégrité)')}>
+                    {t('SHA-256')} {v.sha256}
                   </div>
                 </div>
                 <div className="flex gap-1">
                   <a className="btn-secondary" href={fileUrl(v)} target="_blank" rel="noreferrer">
-                    Ouvrir
+                    {t('Ouvrir')}
                   </a>
                   <a className="btn-secondary" href={fileUrl(v, true)}>
-                    Télécharger
+                    {t('Télécharger')}
                   </a>
                 </div>
               </li>
@@ -256,13 +257,13 @@ export function DocumentsPanel({
 function TextStatus({ doc }: { doc: Rec }) {
   const s = doc.text_status;
   if (s === 'ocr en attente' || s === 'ocr en cours')
-    return <span className="ml-1.5 rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-800">{s === 'ocr en cours' ? 'OCR en cours…' : 'OCR en attente'}</span>;
+    return <span className="ml-1.5 rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-800">{s === 'ocr en cours' ? t('OCR en cours…') : t('OCR en attente')}</span>;
   if (s === 'ocr')
     return (
-      <span className={`ml-1.5 rounded px-1 text-[10px] font-medium ${doc.ocr_confidence < 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`} title="Texte reconnu par OCR (confiance moyenne)">
-        OCR {doc.ocr_confidence ?? '?'} %
+      <span className={`ml-1.5 rounded px-1 text-[10px] font-medium ${doc.ocr_confidence < 70 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`} title={t('Texte reconnu par OCR (confiance moyenne)')}>
+        {t('OCR')} {doc.ocr_confidence ?? '?'} %
       </span>
     );
-  if (['vide', 'ocr vide', 'ocr échoué'].includes(s)) return <span className="ml-1.5 rounded bg-red-100 px-1 text-[10px] font-medium text-red-800">texte illisible</span>;
+  if (['vide', 'ocr vide', 'ocr échoué'].includes(s)) return <span className="ml-1.5 rounded bg-red-100 px-1 text-[10px] font-medium text-red-800">{t('texte illisible')}</span>;
   return null;
 }

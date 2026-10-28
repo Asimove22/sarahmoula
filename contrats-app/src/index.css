@@ -4,11 +4,11 @@
 
 @layer components {
   .btn { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:opacity-50; }
-  .btn-primary { @apply btn bg-indigo-600 text-white hover:bg-indigo-700; }
+  .btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
   .btn-secondary { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
   .btn-danger { @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50; }
   .btn-ghost { @apply btn text-slate-600 hover:bg-slate-100; }
-  .input { @apply w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500; }
+  .input { @apply w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500; }
   .label { @apply mb-1 block text-xs font-medium text-slate-600; }
   .card { @apply min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm; }
   .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500; }

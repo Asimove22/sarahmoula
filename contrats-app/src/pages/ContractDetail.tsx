@@ -17,10 +17,13 @@ import { PlanningTab } from './contract/PlanningTab';
 import { FinanceSummary, FinanceTab } from './contract/FinanceTab';
 import { VisasTab } from './contract/VisasTab';
 import { AssistantTab } from './contract/AssistantTab';
+import { MarcheTab } from './contract/MarcheTab';
+import { t } from '../i18n';
 
 const TABS = [
   { id: 'synthese', label: 'Synthèse' },
   { id: 'revue', label: 'Revue' },
+  { id: 'marche', label: 'Marché public', pub: true },
   { id: 'documents', label: 'Documents' },
   { id: 'organisation', label: 'Organisation' },
   { id: 'planning', label: 'Planning' },
@@ -36,6 +39,7 @@ const TABS = [
 const CONTRACT_LETTERS = [
   { id: 'extension_request', label: 'Demande de prolongation de délai', frameworks: ['FR_PUBLIC', 'FR_PRIVE', 'COMMERCIAL'] },
   { id: 'formal_notice', label: 'Mise en demeure', frameworks: [] as string[] },
+  { id: 'dgd_reserves', label: 'Réserves sur le décompte général', frameworks: ['FR_PUBLIC'] },
 ];
 
 const dateCell = (key: string) => (r: Rec) => fmtDate(r[key]);
@@ -83,24 +87,24 @@ export function ContractDetail() {
   }, [id]);
   useEffect(load, [load]);
 
-  if (!contract) return <div className="text-sm text-slate-500">Chargement…</div>;
+  if (!contract) return <div className="text-sm text-slate-500">{t('Chargement…')}</div>;
   const nec = isNec(contract);
-  const tabs = TABS.filter((t) => !t.nec || nec);
+  const tabs = TABS.filter((tb) => (!tb.nec || nec) && (!tb.pub || contract.framework === 'FR_PUBLIC'));
   const goTab = (t: string, open?: number) => setParams(open ? { tab: t, open: String(open) } : { tab: t });
   const alerts = (t: string) => insights.filter((i) => i.tab === t && i.level !== 'info').length;
 
   const removeContract = async () => {
-    const answer = prompt(`Supprimer le contrat et TOUS ses registres ?\nLes fichiers seront déplacés dans la corbeille.\n\nTapez SUPPRIMER pour confirmer.\n(Conseil : préférez le statut « archivé ».)`);
+    const answer = prompt(t('Supprimer le contrat et TOUS ses registres ?\nLes fichiers seront déplacés dans la corbeille.\n\nTapez SUPPRIMER pour confirmer.\n(Conseil : préférez le statut « archivé ».)'));
     if (answer !== 'SUPPRIMER') return;
     await api.del(`/api/contracts/${id}`);
-    toast('Contrat supprimé');
+    toast(t('Contrat supprimé'));
     navigate('/contrats');
   };
 
   return (
     <div className="space-y-4">
       <Link to="/contrats" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-        <ChevronLeft size={16} /> Contrats
+        <ChevronLeft size={16} /> {t('Contrats')}
       </Link>
 
       <div className="flex flex-wrap items-start gap-3">
@@ -109,31 +113,31 @@ export function ContractDetail() {
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
             {contract.reference && <span>{contract.reference}</span>}
             <span>
-              · {frameworkLabel(contract.framework)}
+              · {t(frameworkLabel(contract.framework))}
               {contract.nec_option && ` option ${contract.nec_option}`}
             </span>
             {contract.counterparty && <span>· {contract.counterparty}</span>}
-            {contract.group_type && <span>· groupement {contract.group_type}</span>}
+            {contract.group_type && <span>{t('· groupement')} {contract.group_type}</span>}
             <Badge value={contract.status} />
           </div>
         </div>
         <a className="btn-secondary" href={`/api/calendar.ics?contract_id=${id}`}>
-          <CalendarPlus size={16} /> Agenda
+          <CalendarPlus size={16} /> {t('Agenda')}
         </a>
         <button className="btn-secondary" onClick={() => setEditing(true)}>
-          <Pencil size={16} /> Modifier
+          <Pencil size={16} /> {t('Modifier')}
         </button>
       </div>
 
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200">
-        {tabs.map((t) => (
+        {tabs.map((item) => (
           <button
-            key={t.id}
-            onClick={() => goTab(t.id)}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${tab === t.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            key={item.id}
+            onClick={() => goTab(item.id)}
+            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${tab === item.id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
-            {t.label}
-            {alerts(t.id) > 0 && <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] text-white">{alerts(t.id)}</span>}
+            {t(item.label)}
+            {alerts(item.id) > 0 && <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] text-white">{alerts(item.id)}</span>}
           </button>
         ))}
       </nav>
@@ -142,43 +146,43 @@ export function ContractDetail() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="min-w-0 space-y-4 lg:col-span-2">
             <section className="card p-4">
-              <h2 className="mb-2 font-semibold">Points d’attention ({insights.length})</h2>
+              <h2 className="mb-2 font-semibold">{t('Points d’attention (')}{insights.length})</h2>
               <Insights items={insights} showContract={false} limit={8} />
             </section>
             <section className="card p-4">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-3">
-                <Info label="Mon rôle">{contract.my_role}</Info>
-                <Info label="Cocontractant">{contract.counterparty}</Info>
-                <Info label="Projet">{contract.project}</Info>
-                <Info label="Montant HT initial">{fmtMoney(contract.amount, contract.currency)}</Info>
-                <Info label="Signature">{fmtDate(contract.signature_date)}</Info>
-                <Info label="Démarrage">{fmtDate(contract.start_date)}</Info>
-                <Info label="Achèvement">{fmtDate(contract.completion_date)}</Info>
-                <Info label="Fin / échéance">{fmtDate(contract.end_date)}</Info>
-                <Info label="Réception">{fmtDate(contract.reception_date)}</Info>
-                <Info label="Préavis">
-                  {contract.notice_period_days ? `${contract.notice_period_days} j${contract.tacit_renewal ? ' · reconduction tacite' : ''}` : contract.tacit_renewal ? 'Reconduction tacite' : '—'}
+                <Info label={t('Mon rôle')}>{contract.my_role}</Info>
+                <Info label={t('Cocontractant')}>{contract.counterparty}</Info>
+                <Info label={t('Projet')}>{contract.project}</Info>
+                <Info label={t('Montant HT initial')}>{fmtMoney(contract.amount, contract.currency)}</Info>
+                <Info label={t('Signature')}>{fmtDate(contract.signature_date)}</Info>
+                <Info label={t('Démarrage')}>{fmtDate(contract.start_date)}</Info>
+                <Info label={t('Achèvement')}>{fmtDate(contract.completion_date)}</Info>
+                <Info label={t('Fin / échéance')}>{fmtDate(contract.end_date)}</Info>
+                <Info label={t('Réception')}>{fmtDate(contract.reception_date)}</Info>
+                <Info label={t('Préavis')}>
+                  {contract.notice_period_days ? `${contract.notice_period_days} j${contract.tacit_renewal ? t(' · reconduction tacite') : ''}` : contract.tacit_renewal ? t('Reconduction tacite') : '—'}
                 </Info>
-                <Info label="Paiement / retenue">
-                  {[contract.payment_days && `${contract.payment_days} j`, contract.retention_percent && `RG ${contract.retention_percent} %`].filter(Boolean).join(' · ')}
+                <Info label={t('Paiement / retenue')}>
+                  {[contract.payment_days && `${contract.payment_days} ${t('j')}`, contract.retention_percent && `RG ${contract.retention_percent} %`].filter(Boolean).join(' · ')}
                 </Info>
-                <Info label="Pénalités">{contract.penalty_terms}</Info>
-                <Info label="Révision des prix">{contract.price_revision}</Info>
-                <Info label="Project Manager / MOE">{contract.project_manager}</Info>
-                <Info label="Délai de visa">{contract.visa_days ? `${contract.visa_days} j` : ''}</Info>
+                <Info label={t('Pénalités')}>{contract.penalty_terms}</Info>
+                <Info label={t('Révision des prix')}>{contract.price_revision}</Info>
+                <Info label={t('Project Manager / MOE')}>{contract.project_manager}</Info>
+                <Info label={t('Délai de visa')}>{contract.visa_days ? `${contract.visa_days} ${t('j')}` : ''}</Info>
                 {nec && (
-                  <Info label="Délais NEC (sem.)">
-                    notif. CE {contract.ce_notify_weeks} · rép. PM {contract.pm_reply_weeks} · devis {contract.quote_weeks} · rép. devis {contract.pm_quote_reply_weeks}
+                  <Info label={t('Délais NEC (sem.)')}>
+                    {t('notif. CE')} {contract.ce_notify_weeks} {t('· rép. PM')} {contract.pm_reply_weeks} {t('· devis')} {contract.quote_weeks} {t('· rép. devis')} {contract.pm_quote_reply_weeks}
                   </Info>
                 )}
-                <Info label="IA">{contract.ai_allow_cloud ? 'Claude autorisé (cloud)' : 'Locale uniquement'}</Info>
+                <Info label={t('IA')}>{contract.ai_effective === 'claude' ? t('Claude (cloud)') : contract.ai_effective === 'off' ? t('Désactivée') : t('Locale (Ollama)')}{!contract.ai_provider && t(' · moteur par défaut')}</Info>
               </dl>
               {contract.contacts && <p className="mt-4 whitespace-pre-line border-t border-slate-100 pt-3 text-sm">{contract.contacts}</p>}
               {contract.notes && <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{contract.notes}</p>}
               <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
                 {CONTRACT_LETTERS.filter((l) => !l.frameworks.length || l.frameworks.includes(contract.framework)).map((l) => (
                   <button key={l.id} className="btn-secondary" onClick={() => setLetter(l.id)}>
-                    <Mail size={16} /> {l.label}
+                    <Mail size={16} /> {t(l.label)}
                   </button>
                 ))}
               </div>
@@ -186,11 +190,11 @@ export function ContractDetail() {
           </div>
           <div className="min-w-0 space-y-4">
             <section className="card p-4">
-              <h2 className="mb-2 font-semibold">Finances</h2>
+              <h2 className="mb-2 font-semibold">{t('Finances')}</h2>
               <FinanceSummary contract={contract} refreshKey={refreshKey} compact />
             </section>
             <section className="card p-4">
-              <h2 className="mb-2 font-semibold">Échéances du contrat</h2>
+              <h2 className="mb-2 font-semibold">{t('Échéances du contrat')}</h2>
               <DeadlineList items={deadlines} showContract={false} empty="Aucune échéance ouverte." />
             </section>
           </div>
@@ -198,6 +202,7 @@ export function ContractDetail() {
       )}
 
       {tab === 'revue' && <ReviewTab contract={contract} openId={openId} onChange={load} />}
+      {tab === 'marche' && <MarcheTab contract={contract} openId={openId} entity={entity} onChange={load} />}
       {tab === 'documents' && <DocumentsPanel contractId={id} defaultCategory="Contrat" />}
       {tab === 'organisation' && <OrganisationTab contract={contract} openId={openId} onChange={load} />}
       {tab === 'planning' && <PlanningTab contract={contract} openId={openId} entity={entity} onChange={load} />}
@@ -208,7 +213,7 @@ export function ContractDetail() {
         <RegisterPanel
           table="early_warnings"
           contractId={id}
-          title="Registre des Early Warnings"
+          title={t('Registre des Early Warnings')}
           addLabel="Notifier un Early Warning"
           emptyText="Aucun Early Warning. Notifiez dès qu'un risque peut affecter le prix, le délai, une Key Date ou la performance de l'ouvrage."
           fields={EW_FIELDS}
@@ -257,7 +262,7 @@ export function ContractDetail() {
                   }
                 }}
               >
-                Convertir en CE →
+                {t('Convertir en CE →')}
               </button>
             ) : null
           }
@@ -268,7 +273,7 @@ export function ContractDetail() {
         <RegisterPanel
           table="compensation_events"
           contractId={id}
-          title="Registre des Compensation Events"
+          title={t('Registre des Compensation Events')}
           addLabel="Nouveau Compensation Event"
           emptyText="Aucun Compensation Event."
           fields={CE_FIELDS}
@@ -288,7 +293,7 @@ export function ContractDetail() {
                   {r.title}
                   {r.time_barred_risk && (
                     <div className="flex items-center gap-1 text-xs text-red-600">
-                      <AlertTriangle size={12} /> Délai de notification de {contract.ce_notify_weeks} sem. dépassé (risque de forclusion)
+                      <AlertTriangle size={12} /> {t('Délai de notification de')} {contract.ce_notify_weeks} {t('sem. dépassé (risque de forclusion)')}
                     </div>
                   )}
                 </>
@@ -322,10 +327,10 @@ export function ContractDetail() {
           ]}
           formFooter={(ce) => (
             <span className="text-xs text-slate-500">
-              {ce.notify_deadline && <>Limite de notification : {fmtDate(ce.notify_deadline)}. </>}
-              {ce.pm_reply_due && <>Réponse PM attendue : {fmtDate(ce.pm_reply_due)}. </>}
-              {ce.quotation_due && <>Devis à remettre : {fmtDate(ce.quotation_due)}. </>}
-              {ce.pm_quote_reply_due && <>Réponse au devis : {fmtDate(ce.pm_quote_reply_due)}.</>}
+              {ce.notify_deadline && <>{t('Limite de notification :')} {fmtDate(ce.notify_deadline)}. </>}
+              {ce.pm_reply_due && <>{t('Réponse PM attendue :')} {fmtDate(ce.pm_reply_due)}. </>}
+              {ce.quotation_due && <>{t('Devis à remettre :')} {fmtDate(ce.quotation_due)}. </>}
+              {ce.pm_quote_reply_due && <>{t('Réponse au devis :')} {fmtDate(ce.pm_quote_reply_due)}.</>}
             </span>
           )}
         />
@@ -336,21 +341,21 @@ export function ContractDetail() {
       {tab === 'journal' && <JournalTab contractId={id} />}
 
       {editing && (
-        <Modal title="Modifier le contrat" onClose={() => setEditing(false)}>
+        <Modal title={t('Modifier le contrat')} onClose={() => setEditing(false)}>
           <EntityForm
             fields={CONTRACT_FIELDS}
             initial={contract}
             onCancel={() => setEditing(false)}
             footer={
               <button type="button" className="btn-danger" onClick={removeContract}>
-                <Trash2 size={16} /> Supprimer le contrat
+                <Trash2 size={16} /> {t('Supprimer le contrat')}
               </button>
             }
             onSubmit={async (values) => {
               try {
                 await api.put(`/api/contracts/${id}`, values);
                 setEditing(false);
-                toast('Contrat mis à jour');
+                toast(t('Contrat mis à jour'));
                 load();
               } catch (e) {
                 toastError(e);
@@ -394,7 +399,7 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
         response_due: result.response_required ? addDaysIso(message.date || todayIso(), result.response_days || 15) : null,
         status: message.status === 'à traiter' ? 'en cours' : message.status,
       });
-      toast('Échange qualifié');
+      toast(t('Échange qualifié'));
       triage!.close();
       setTriage(null);
       setRefreshKey((k) => k + 1);
@@ -418,7 +423,7 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
       <RegisterPanel
         table="correspondence"
         contractId={contractId}
-        title="Registre des échanges"
+        title={t('Registre des échanges')}
         addLabel="Saisir un échange"
         emptyText="Aucun échange. Glissez des emails (.eml, .msg) ou des courriers (PDF) dans la zone ci-dessus."
         fields={CORRESPONDENCE_FIELDS}
@@ -441,17 +446,17 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
               }
             }}
           >
-            <Sparkles size={16} /> Analyser avec l’IA
+            <Sparkles size={16} /> {t('Analyser avec l’IA')}
           </button>
         )}
         toolbar={
           <div className="flex flex-wrap items-center gap-3">
             <select className="input w-auto" value={direction} onChange={(e) => setDirection(e.target.value)}>
-              <option value="entrant">Échanges reçus</option>
-              <option value="sortant">Échanges envoyés</option>
+              <option value="entrant">{t('Échanges reçus')}</option>
+              <option value="sortant">{t('Échanges envoyés')}</option>
             </select>
             <div className="min-w-[260px] flex-1">
-              <FileDrop compact onFiles={importFiles} label={busy ? 'Import en cours…' : 'Déposez ici emails Outlook (.msg), .eml ou PDF : objet, expéditeur, date et pièces jointes sont lus automatiquement'} />
+              <FileDrop compact onFiles={importFiles} label={busy ? t('Import en cours…') : t('Déposez ici emails Outlook (.msg), .eml ou PDF : objet, expéditeur, date et pièces jointes sont lus automatiquement')} />
             </div>
           </div>
         }
@@ -461,7 +466,7 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
           {
             key: 'direction',
             label: '',
-            render: (r) => (r.direction === 'sortant' ? <ArrowUpRight size={16} className="text-indigo-600" aria-label="Envoyé" /> : <ArrowDownLeft size={16} className="text-emerald-600" aria-label="Reçu" />),
+            render: (r) => (r.direction === 'sortant' ? <ArrowUpRight size={16} className="text-brand-600" aria-label={t('Envoyé')} /> : <ArrowDownLeft size={16} className="text-emerald-600" aria-label={t('Reçu')} />),
           },
           {
             key: 'subject',
@@ -486,7 +491,7 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
           <div className="space-y-3 text-sm">
             <p className="whitespace-pre-line">{triage.result.summary}</p>
             <p>
-              Réponse attendue : <b>{triage.result.response_required ? `oui, sous ${triage.result.response_days} jour(s)` : 'non'}</b>
+              {t('Réponse attendue :')} <b>{triage.result.response_required ? `oui, sous ${triage.result.response_days} jour(s)` : 'non'}</b>
             </p>
             {triage.result.actions?.length > 0 && (
               <ul className="list-disc pl-5">
@@ -497,18 +502,18 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
             )}
             {triage.result.risk !== 'aucun' && (
               <p className="rounded bg-amber-50 p-2 text-amber-900">
-                Risque détecté : <b>{triage.result.risk.replace('_', ' ')}</b> — {triage.result.risk_reason}
+                {t('Risque détecté :')} <b>{triage.result.risk.replace('_', ' ')}</b> — {triage.result.risk_reason}
               </p>
             )}
-            <p className="text-xs text-slate-400">Analyse générée par {triage.result.provider === 'claude' ? 'Claude' : 'l’IA locale'} : à valider.</p>
+            <p className="text-xs text-slate-400">{t('Analyse générée par')} {triage.result.provider === 'claude' ? t('Claude') : t('l’IA locale')} {t(': à valider.')}</p>
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
               {isNec(contract) && ['early_warning', 'compensation_event'].includes(triage.result.risk) && (
                 <button className="btn-secondary" onClick={() => createEw().catch(toastError)}>
-                  Créer un Early Warning
+                  {t('Créer un Early Warning')}
                 </button>
               )}
               <button className="btn-primary" onClick={applyTriage}>
-                Appliquer (réponse attendue, statut)
+                {t('Appliquer (réponse attendue, statut)')}
               </button>
             </div>
           </div>
@@ -529,7 +534,7 @@ function JournalTab({ contractId }: { contractId: number }) {
         {rows.map((j) => (
           <li key={j.id} className="flex gap-3 py-1.5">
             <span className="w-32 shrink-0 text-xs text-slate-400">{fmtDateTime(j.at)}</span>
-            <span className="w-40 shrink-0 text-slate-500">{ENTITY_LABELS[j.entity] ?? j.entity}</span>
+            <span className="w-40 shrink-0 text-slate-500">{t(ENTITY_LABELS[j.entity] ?? j.entity)}</span>
             <span className="w-28 shrink-0">{j.action}</span>
             <span className="min-w-0">{j.summary}</span>
           </li>
