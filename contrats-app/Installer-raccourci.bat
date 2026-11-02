@@ -13,7 +13,7 @@ if not exist package.json (
 )
 
 echo.
-echo  Creation de l'icone "Gestion contractuelle" sur le Bureau et dans le menu Demarrer.
+echo  Creation de l'icone "Clausia" sur le Bureau et dans le menu Demarrer.
 echo.
 set AUTO=N
 set /p AUTO=" Demarrer automatiquement l'application a l'ouverture de session Windows ? (O/N) : "
@@ -27,7 +27,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo  Icone creee. Double-cliquez sur "Gestion contractuelle" sur le Bureau.
+echo  Icone creee. Double-cliquez sur "Clausia" sur le Bureau.
 echo  Astuce : clic droit sur l'icone, "Epingler a la barre des taches".
 echo.
 pause

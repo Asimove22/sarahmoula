@@ -73,8 +73,12 @@ if errorlevel 1 (
 >>"%OUT%" echo [7] PowerShell et icone du Bureau
 powershell -NoProfile -Command "Write-Output ('    PowerShell ' + $PSVersionTable.PSVersion.ToString()); Get-ExecutionPolicy -List | ForEach-Object { '    ' + $_.Scope + ' : ' + $_.ExecutionPolicy }" >>"%OUT%" 2>&1
 if errorlevel 1 >>"%OUT%" echo     ERREUR PowerShell ne s'execute pas (bloque par l'entreprise ?) : utiliser Lancer.bat
-powershell -NoProfile -Command "$l = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Gestion contractuelle.lnk'); if (-not $l.Arguments) { '    pas d''icone Gestion contractuelle sur le Bureau' } else { $p = $l.Arguments.Split([char]34)[1]; '    icone -> ' + $p; if (Test-Path $p) { '    OK le fichier cible existe' } else { '    ERREUR la cible n''existe plus : relancer Installer-raccourci.bat depuis ce dossier' } }" >>"%OUT%" 2>&1
-if exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Gestion contractuelle.lnk" (>>"%OUT%" echo     demarrage automatique : active) else (>>"%OUT%" echo     demarrage automatique : non active)
+powershell -NoProfile -Command "$l = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Clausia.lnk'); if (-not $l.Arguments) { $l = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Gestion contractuelle.lnk') }; if (-not $l.Arguments) { '    pas d''icone Clausia sur le Bureau' } else { $p = $l.Arguments.Split([char]34)[1]; '    icone -> ' + $p; if (Test-Path $p) { '    OK le fichier cible existe' } else { '    ERREUR la cible n''existe plus : relancer Installer-raccourci.bat depuis ce dossier' } }" >>"%OUT%" 2>&1
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "AUTOSTART=non active"
+if exist "%STARTUP%\Gestion contractuelle.lnk" set "AUTOSTART=active"
+if exist "%STARTUP%\Clausia.lnk" set "AUTOSTART=active"
+>>"%OUT%" echo     demarrage automatique : %AUTOSTART%
 
 >>"%OUT%" echo.
 >>"%OUT%" echo [8] Edge

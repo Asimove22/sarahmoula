@@ -54,7 +54,7 @@ Double-clique sur **`Lancer.bat`**.
 
 ### Étape 3 bis : créer l'icône sur le Bureau
 
-Double-clique sur **`Installer-raccourci.bat`** (une seule fois). Il crée l'icône **Gestion contractuelle** sur le Bureau et dans le menu Démarrer, et propose de démarrer l'application automatiquement à l'ouverture de session.
+Double-clique sur **`Installer-raccourci.bat`** (une seule fois). Il crée l'icône **Clausia** sur le Bureau (et remplace l'ancienne icône « Gestion contractuelle ») et dans le menu Démarrer, et propose de démarrer l'application automatiquement à l'ouverture de session.
 
 Ensuite, **utilise uniquement l'icône** :
 - elle démarre l'application **sans fenêtre noire** et l'ouvre dans sa propre fenêtre ;

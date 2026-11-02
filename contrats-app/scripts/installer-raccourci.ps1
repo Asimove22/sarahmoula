@@ -1,4 +1,4 @@
-﻿# Crée l'icône « Gestion contractuelle » sur le Bureau, dans le menu Démarrer et, si demandé, au démarrage de Windows.
+﻿# Crée l'icône « Clausia » sur le Bureau, dans le menu Démarrer et, si demandé, au démarrage de Windows.
 param([string]$Auto = 'N')
 
 $ErrorActionPreference = 'Stop'
@@ -18,15 +18,21 @@ function New-AppShortcut([string]$Path, [string]$Extra) {
   $link.WorkingDirectory = $root
   $link.IconLocation = "$root\public\app.ico,0"
   $link.WindowStyle = 7
-  $link.Description = 'Gestion contractuelle et documentaire'
+  $link.Description = 'Clausia – gestion contractuelle et documentaire'
   $link.Save()
   Write-Host "  Créé : $Path"
 }
 
-New-AppShortcut ([Environment]::GetFolderPath('Desktop') + '\Gestion contractuelle.lnk') ''
-New-AppShortcut ([Environment]::GetFolderPath('Programs') + '\Gestion contractuelle.lnk') ''
+# Les icônes des versions précédentes s'appelaient « Gestion contractuelle » : on les remplace.
+foreach ($folder in 'Desktop', 'Programs', 'Startup') {
+  $old = [Environment]::GetFolderPath($folder) + '\Gestion contractuelle.lnk'
+  if (Test-Path $old) { Remove-Item $old }
+}
 
-$startup = [Environment]::GetFolderPath('Startup') + '\Gestion contractuelle.lnk'
+New-AppShortcut ([Environment]::GetFolderPath('Desktop') + '\Clausia.lnk') ''
+New-AppShortcut ([Environment]::GetFolderPath('Programs') + '\Clausia.lnk') ''
+
+$startup = [Environment]::GetFolderPath('Startup') + '\Clausia.lnk'
 if ($Auto -match '^[oOyY]') {
   New-AppShortcut $startup '-SansFenetre'
 } elseif (Test-Path $startup) {
