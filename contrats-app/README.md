@@ -63,7 +63,12 @@ Ensuite, **utilise uniquement l'icône** :
 
 Astuce : clic droit sur l'icône du Bureau → *Épingler à la barre des tâches*. Pour arrêter l'application : **Paramètres → Arrêter l'application**.
 
-Si l'icône ne fait rien, lance `Lancer.bat` : il affiche les messages d'erreur, et le journal se trouve dans `data\journal-erreurs.log`.
+Si l'icône ne fait rien :
+- **Le dossier a été déplacé ou supprimé** (par exemple après une mise à jour) : l'icône pointe encore vers l'ancien emplacement. Relance `Installer-raccourci.bat` depuis le dossier actuel.
+- **PowerShell est bloqué** (PC d'entreprise, antivirus) : utilise `Lancer.bat`, ou l'application installée par Edge (ci-dessous).
+- Sinon, l'icône affiche désormais la cause (Node.js trop ancien, port 4580 occupé…). Le journal se trouve dans `data\journal-erreurs.log`.
+
+**Le plus simple au quotidien** : accepte le démarrage automatique proposé par `Installer-raccourci.bat`. Clausia démarre alors en arrière-plan à l'ouverture de session. Ouvre ensuite <http://localhost:4580> dans Edge, puis menu **… → Applications → Installer ce site en tant qu'application** : Clausia apparaît dans le menu Démarrer et peut être épinglée à la barre des tâches, avec son logo.
 
 ### Étape 4 : premier contrat
 
