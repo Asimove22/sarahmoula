@@ -97,7 +97,7 @@ if errorlevel 1 if exist node_modules (
   curl.exe -s -m 3 http://localhost:4599/api/health >"%TEMP%\clausia-health.txt" 2>nul && (>>"%OUT%" echo     OK le serveur demarre correctement) || (>>"%OUT%" echo     ERREUR le serveur ne repond pas apres 12 s)
   >>"%OUT%" echo     --- sortie du serveur ---
   type "%TEMP%\clausia-essai.txt" >>"%OUT%"
-  curl.exe -s -m 3 -X POST http://localhost:4599/api/shutdown >nul 2>nul
+  curl.exe -s -m 3 -X POST http://localhost:4599/api/system/shutdown >nul 2>nul
   for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":4599 .*LISTENING"') do taskkill /pid %%p /f >nul 2>nul
 )
 
