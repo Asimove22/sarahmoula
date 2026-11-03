@@ -239,4 +239,13 @@ export const EN_D: Record<string, string> = {
   'Installer le modèle {model} (≈ 4,7 Go)': 'Install model {model} (≈ 4.7 GB)',
   'Vérifier à nouveau': 'Check again',
   'Ollama démarré, mais le modèle {model} n’est pas installé : Paramètres → « Installer le modèle »': 'Ollama is running, but model {model} is not installed: Settings → “Install the model”',
+  '{n} élément(s) créé(s) avec leur document': '{n} item(s) created with their document',
+  '{n} sans information lisible (scan ?) : à compléter': '{n} without readable information (scan?): to complete',
+  'vérifiez les valeurs lues': 'check the values read',
+  'Lecture des documents…': 'Reading documents…',
+  'Déposez des OS reçus (PDF, Word…) : un OS est créé par fichier, avec le document joint': 'Drop received service orders (PDF, Word…): one service order is created per file, with the document attached',
+  'Déposez des courriers ou mémoires (PDF, Word, PowerPoint…) : une réclamation est créée par fichier, avec le document joint': 'Drop letters or statements of claim (PDF, Word, PowerPoint…): one claim is created per file, with the document attached',
+  'Déposez des factures ou situations (PDF, Excel…) : n°, date, période et montants HT/TTC sont lus automatiquement': 'Drop invoices or payment applications (PDF, Excel…): number, date, period and amounts excl./incl. VAT are read automatically',
+  'Déposez des avenants ou projets d’avenant (PDF, Word…) : un avenant est créé par fichier': 'Drop amendments or draft amendments (PDF, Word…): one amendment is created per file',
+  'Réclamation / Mémoire': 'Claim / statement',
 };

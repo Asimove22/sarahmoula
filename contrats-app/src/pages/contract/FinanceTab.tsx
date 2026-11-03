@@ -72,6 +72,9 @@ export function FinanceTab({ contract, openId, entity, onChange }: { contract: R
           emptyText="Enregistrez vos demandes de paiement : l’échéance est calculée avec le délai de paiement du contrat et les retards sont signalés."
           fields={PAYMENT_FIELDS}
           defaults={{ status: 'soumise', submitted_date: todayIso() }}
+          docLink="payment_id"
+          docCategory="Facture / Situation"
+          importDocs="Déposez des factures ou situations (PDF, Excel…) : n°, date, période et montants HT/TTC sont lus automatiquement"
           openId={entity === 'payments' ? openId : undefined}
           onChange={changed}
           rowClassName={(r) => (r.overdue ? 'bg-red-50' : '')}
@@ -126,6 +129,9 @@ export function FinanceTab({ contract, openId, entity, onChange }: { contract: R
           emptyText="Aucun avenant. Archivez aussi le document signé dans la GED (catégorie « Avenant »)."
           fields={AMENDMENT_FIELDS}
           defaults={{ status: 'en négociation' }}
+          docLink="amendment_id"
+          docCategory="Avenant"
+          importDocs="Déposez des avenants ou projets d’avenant (PDF, Word…) : un avenant est créé par fichier"
           openId={entity === 'amendments' ? openId : undefined}
           onChange={changed}
           columns={[

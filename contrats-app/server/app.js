@@ -2,7 +2,8 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import { columnsOf, toSql, logJournal, getSettings, setSettings } from './db.js';
+import { DOC_LINKS, columnsOf, toSql, logJournal, getSettings, setSettings } from './db.js';
+import { parseInvoice, parseLetter } from './invoice.js';
 import { computeDeadlines, today, addDays } from './deadlines.js';
 import { buildIcs } from './ics.js';
 import { parseEmail } from './mail.js';
@@ -48,7 +49,7 @@ const AI_CATEGORY_ORDER = ['Contrat', 'Acte d’engagement', 'Contract Data', 'C
 const NOT_FOR_REVIEW = ['Échange', 'Pièce jointe', 'Facture / Situation', 'Compte rendu / PV'];
 
 // Colonnes de documents que l'utilisateur peut modifier (le fichier lui-même est immuable).
-const DOCUMENT_EDITABLE = ['category', 'title', 'reference', 'doc_date', 'notes', 'correspondence_id', 'early_warning_id', 'compensation_event_id', 'submittal_id'];
+const DOCUMENT_EDITABLE = ['category', 'title', 'reference', 'doc_date', 'notes', ...Object.values(DOC_LINKS)];
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -246,7 +247,7 @@ export function createApp({ db, dataDir, onShutdown }) {
       const args = [];
       if (req.query.contract_id) { filters.push('t.contract_id = ?'); args.push(Number(req.query.contract_id)); }
       if (req.query.status && columns[table].includes('status')) { filters.push('t.status = ?'); args.push(String(req.query.status)); }
-      const docLink = { correspondence: 'correspondence_id', early_warnings: 'early_warning_id', compensation_events: 'compensation_event_id', submittals: 'submittal_id' }[table];
+      const docLink = DOC_LINKS[table];
       const extra = docLink ? `, (SELECT COUNT(*) FROM documents d WHERE d.${docLink} = t.id) AS documents_count` : '';
       const rows = db.prepare(`
         SELECT t.*, c.title AS contract_title, c.reference AS contract_reference ${extra}
@@ -272,7 +273,7 @@ export function createApp({ db, dataDir, onShutdown }) {
   app.get('/api/documents', h((req) => {
     const filters = [];
     const args = [];
-    for (const key of ['contract_id', 'correspondence_id', 'early_warning_id', 'compensation_event_id', 'submittal_id']) {
+    for (const key of ['contract_id', ...Object.values(DOC_LINKS)]) {
       if (req.query[key]) { filters.push(`d.${key} = ?`); args.push(Number(req.query[key])); }
     }
     if (req.query.category) { filters.push('d.category = ?'); args.push(String(req.query.category)); }
@@ -320,6 +321,82 @@ export function createApp({ db, dataDir, onShutdown }) {
     return stripText(row);
   }));
   app.delete('/api/documents/:id', h((req) => (remove('documents', req.params.id), { ok: true })));
+
+  // ---------- Import de documents qui crée l'élément du registre (factures, courriers…) ----------
+  const money = (n) => (n == null ? '' : `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
+  const IMPORTERS = {
+    payments: {
+      category: 'Facture / Situation',
+      build: (text, name) => {
+        const inv = parseInvoice(text);
+        const found = [inv.number && `n° ${inv.number}`, inv.amount_ht != null && `HT ${money(inv.amount_ht)}`, inv.amount_ttc != null && `TTC ${money(inv.amount_ttc)}`].filter(Boolean);
+        return {
+          record: { period: inv.period, submitted_date: inv.date, amount_requested: inv.amount_ht ?? inv.amount_ttc, status: 'soumise',
+            notes: `Importé de « ${name} »${found.length ? ` : ${found.join(', ')}` : ''}. Montants lus automatiquement : à vérifier.` },
+          doc: { reference: inv.number, doc_date: inv.date },
+          found: found.length,
+        };
+      },
+    },
+    claims: {
+      category: 'Réclamation / Mémoire',
+      build: (text, name) => {
+        const l = parseLetter(text, name);
+        return {
+          record: { title: l.title, dispute_date: l.date, amount_claimed: l.amount, extra_days_claimed: l.days, status: 'différend',
+            notes: `Créé depuis « ${name} »${l.reference ? ` (réf. ${l.reference})` : ''}. Vérifiez la date d’apparition du différend : elle fait courir le délai de 2 mois.` },
+          doc: { reference: l.reference, doc_date: l.date },
+          found: [l.date, l.amount, l.reference].filter(Boolean).length,
+        };
+      },
+    },
+    service_orders: {
+      category: 'Ordre de service',
+      build: (text, name) => {
+        const l = parseLetter(text, name);
+        return {
+          record: { title: l.title, issued_date: l.date, received_date: today(), amount: l.amount, extra_days: l.days,
+            notes: `Créé depuis « ${name} ». Date de réception = aujourd’hui : corrigez-la si besoin (elle fait courir les 15 jours de réserves).` },
+          doc: { reference: l.reference, doc_date: l.date },
+          found: [l.date, l.amount].filter(Boolean).length,
+        };
+      },
+    },
+    amendments: {
+      category: 'Avenant',
+      build: (text, name) => {
+        const l = parseLetter(text, name);
+        return {
+          record: { title: l.title, amount: l.amount, extra_days: l.days, status: 'en négociation', notes: `Créé depuis « ${name} ».` },
+          doc: { reference: l.reference, doc_date: l.date },
+          found: [l.amount, l.days].filter(Boolean).length,
+        };
+      },
+    },
+  };
+
+  app.post('/api/:table/import-documents', upload.array('files'), h(async (req) => {
+    const { table } = req.params;
+    const importer = IMPORTERS[table];
+    if (!importer) throw new HttpError(404, 'Import de documents non disponible pour ce registre');
+    const contractId = Number(req.body.contract_id);
+    getRow('contracts', contractId);
+    if (!req.files?.length) throw new HttpError(400, 'Aucun fichier reçu');
+    const created = [];
+    for (const f of req.files) {
+      const filename = f.originalname;
+      const { text } = await extractDocumentText(filename, f.buffer);
+      const { record, doc, found } = importer.build(text, filename);
+      const cfg = registers[table];
+      const body = { ...Object.fromEntries(Object.entries(record).filter(([, v]) => v !== null && v !== undefined && v !== '')), contract_id: contractId };
+      body[cfg.numberCol] = nextNumber(db, table, cfg.numberCol, contractId, cfg.prefix(body));
+      const row = insert(table, body);
+      await storeDocument({ contractId, buffer: f.buffer, filename, mime: f.mimetype,
+        meta: { category: importer.category, title: record.title || filename.replace(/\.[^.]+$/, ''), ...Object.fromEntries(Object.entries(doc).filter(([, v]) => v)), [DOC_LINKS[table]]: row.id } });
+      created.push({ ...enrich(table, [getRow(table, row.id)])[0], read_fields: found, text_found: Boolean(text) });
+    }
+    return created;
+  }));
 
   // ---------- Import d'échanges par glisser-déposer (.eml, .msg, PDF…) ----------
   app.post('/api/correspondence/import', upload.array('files'), h(async (req) => {

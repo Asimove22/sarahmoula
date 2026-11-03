@@ -1,4 +1,5 @@
 // Extraction du texte des documents pour la recherche plein texte et l'assistant IA.
+import JSZip from 'jszip';
 import { extractText, getDocumentProxy } from 'unpdf';
 import mammoth from 'mammoth';
 import ExcelJS from 'exceljs';
@@ -26,6 +27,8 @@ export async function extractDocumentText(filename, buffer) {
         ws.eachRow((row) => lines.push((row.values ?? []).slice(1).map(cellText).join(' | ')));
       });
       text = lines.join('\n');
+    } else if (ext === 'pptx') {
+      text = await pptxText(buffer);
     } else if (['txt', 'csv', 'md', 'xml', 'xer'].includes(ext)) {
       text = buffer.toString('utf8');
     } else if (ext === 'eml') {
@@ -68,4 +71,25 @@ export function ftsQuery(q) {
     .filter((w) => w.length >= 2)
     .slice(0, 12);
   return words.map((w) => `"${w}"*`).join(' ');
+}
+
+/** Texte d'une présentation PowerPoint (.pptx) : diapositives dans l'ordre, puis notes. */
+async function pptxText(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const num = (name) => Number(name.match(/(\d+)\.xml$/)?.[1] ?? 0);
+  const parts = (dir) => Object.keys(zip.files).filter((n) => new RegExp(`^ppt/${dir}/[^/]+\\d+\\.xml$`).test(n)).sort((a, b) => num(a) - num(b));
+  const decode = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+  const out = [];
+  for (const [i, name] of parts('slides').entries()) {
+    const xml = await zip.file(name).async('string');
+    // Un paragraphe <a:p> par ligne, les fragments <a:t> mis bout à bout.
+    const lines = xml.split(/<\/a:p>/).map((p) => [...p.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => decode(m[1])).join('')).filter((l) => l.trim());
+    out.push(`# Diapositive ${i + 1}`, ...lines);
+  }
+  for (const name of parts('notesSlides')) {
+    const xml = await zip.file(name).async('string');
+    const notes = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => decode(m[1])).join(' ').trim();
+    if (notes) out.push(`Notes : ${notes}`);
+  }
+  return out.join('\n');
 }

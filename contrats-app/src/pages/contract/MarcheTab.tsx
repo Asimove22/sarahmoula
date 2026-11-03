@@ -52,6 +52,9 @@ export function MarcheTab({ contract, openId, entity, onChange }: { contract: Re
           emptyText={t('Enregistrez chaque ordre de service reçu : le délai de 15 jours pour émettre des réserves est suivi automatiquement.')}
           fields={SERVICE_ORDER_FIELDS}
           defaults={{ status: 'reçu', received_date: todayIso() }}
+          docLink="service_order_id"
+          docCategory="Ordre de service"
+          importDocs="Déposez des OS reçus (PDF, Word…) : un OS est créé par fichier, avec le document joint"
           openId={entity === 'service_orders' ? openId : undefined}
           onChange={onChange}
           rowClassName={(r) => (r.overdue ? 'bg-red-50' : '')}
@@ -74,6 +77,9 @@ export function MarcheTab({ contract, openId, entity, onChange }: { contract: Re
           emptyText={t('Dès qu’un différend apparaît, enregistrez-le : le délai de 2 mois pour transmettre le mémoire en réclamation est suivi, puis le délai de réponse de l’acheteur (silence = rejet).')}
           fields={CLAIM_FIELDS}
           defaults={{ status: 'différend', dispute_date: todayIso() }}
+          docLink="claim_id"
+          docCategory="Réclamation / Mémoire"
+          importDocs="Déposez des courriers ou mémoires (PDF, Word, PowerPoint…) : une réclamation est créée par fichier, avec le document joint"
           openId={entity === 'claims' ? openId : undefined}
           onChange={onChange}
           columns={[
@@ -96,6 +102,8 @@ export function MarcheTab({ contract, openId, entity, onChange }: { contract: Re
           emptyText={t('Déclarez chaque sous-traitant (DC4). Il ne peut intervenir qu’après acceptation et agrément de ses conditions de paiement.')}
           fields={SUBCONTRACTOR_FIELDS}
           defaults={{ status: 'en cours d’agrément', direct_payment: 1 }}
+          docLink="subcontractor_id"
+          docCategory="Pièce jointe"
           openId={entity === 'subcontractors' ? openId : undefined}
           onChange={onChange}
           columns={[

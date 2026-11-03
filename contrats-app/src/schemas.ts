@@ -55,6 +55,8 @@ export const DOCUMENT_CATEGORIES = [
   'Pièce jointe',
   'Compte rendu / PV',
   'Facture / Situation',
+  'Réclamation / Mémoire',
+  'Ordre de service',
   'Garantie / Caution',
   'Assurance',
   'Plan / Technique',

@@ -271,7 +271,28 @@ const MIGRATIONS = [
   CREATE INDEX idx_claims_contract ON claims(contract_id);
   CREATE INDEX idx_sub_contract2 ON subcontractors(contract_id);
   `,
+  // V5 : documents rattachés aux réclamations, situations, OS, avenants et sous-traitants.
+  `
+  ALTER TABLE documents ADD COLUMN claim_id INTEGER REFERENCES claims(id) ON DELETE SET NULL;
+  ALTER TABLE documents ADD COLUMN payment_id INTEGER REFERENCES payments(id) ON DELETE SET NULL;
+  ALTER TABLE documents ADD COLUMN service_order_id INTEGER REFERENCES service_orders(id) ON DELETE SET NULL;
+  ALTER TABLE documents ADD COLUMN amendment_id INTEGER REFERENCES amendments(id) ON DELETE SET NULL;
+  ALTER TABLE documents ADD COLUMN subcontractor_id INTEGER REFERENCES subcontractors(id) ON DELETE SET NULL;
+  `,
 ];
+
+/** Colonne de la table documents qui rattache un fichier à une ligne de registre. */
+export const DOC_LINKS = {
+  correspondence: 'correspondence_id',
+  early_warnings: 'early_warning_id',
+  compensation_events: 'compensation_event_id',
+  submittals: 'submittal_id',
+  claims: 'claim_id',
+  payments: 'payment_id',
+  service_orders: 'service_order_id',
+  amendments: 'amendment_id',
+  subcontractors: 'subcontractor_id',
+};
 
 export function openDatabase(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });

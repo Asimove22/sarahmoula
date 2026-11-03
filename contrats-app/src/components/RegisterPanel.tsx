@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { FileSpreadsheet, Mail, Plus, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, Mail, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { api, type Rec } from '../api';
 import type { Field } from '../schemas';
 import { EntityForm } from './EntityForm';
 import { DocumentsPanel } from './DocumentsPanel';
 import { LETTERS_BY_ENTITY, LetterModal } from './LetterModal';
-import { Empty, Modal, toast, toastError } from './ui';
+import { Empty, FileDrop, Modal, toast, toastError } from './ui';
 import { t } from '../i18n';
 
 export interface Column {
@@ -38,6 +38,7 @@ export function RegisterPanel({
   onChange,
   hideAdd,
   topContent,
+  importDocs,
 }: {
   table: string;
   contractId: number;
@@ -59,6 +60,8 @@ export function RegisterPanel({
   hideAdd?: boolean;
   /** Contenu affiché au-dessus du tableau (synthèse, graphique…). */
   topContent?: ReactNode;
+  /** Glisser-déposer de documents (factures, courriers…) qui crée chacun une ligne du registre. */
+  importDocs?: string;
 }) {
   const [rows, setRows] = useState<Rec[]>([]);
   const [editing, setEditing] = useState<Rec | null>(null);
@@ -110,6 +113,25 @@ export function RegisterPanel({
     }
   };
 
+  const [importing, setImporting] = useState(false);
+  const importFiles = async (files: File[]) => {
+    setImporting(true);
+    try {
+      const created = await api.upload<Rec[]>(`/api/${table}/import-documents`, files, { contract_id: contractId });
+      const unread = created.filter((r) => !r.read_fields).length;
+      toast(
+        t('{n} élément(s) créé(s) avec leur document', { n: created.length })
+          + (unread ? ` · ${t('{n} sans information lisible (scan ?) : à compléter', { n: unread })}` : ` · ${t('vérifiez les valeurs lues')}`),
+      );
+      changed();
+      if (created.length === 1) setEditing(created[0]);
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const q = filter.toLowerCase();
   const shown = q ? rows.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(q))) : rows;
 
@@ -130,6 +152,7 @@ export function RegisterPanel({
         )}
       </div>
       {toolbar}
+      {importDocs && <FileDrop compact onFiles={importFiles} label={importing ? t('Lecture des documents…') : t(importDocs)} />}
       {topContent}
       {shown.length === 0 ? (
         <Empty>{t(emptyText)}</Empty>
@@ -148,9 +171,16 @@ export function RegisterPanel({
             <tbody className="divide-y divide-slate-100">
               {shown.map((r) => (
                 <tr key={r.id} className={`cursor-pointer hover:bg-brand-50/40 ${rowClassName?.(r) ?? ''}`} onClick={() => setEditing(r)}>
-                  {columns.map((c) => (
+                  {columns.map((c, i) => (
                     <td key={c.key} className={`td ${c.className ?? ''}`}>
                       {c.render ? c.render(r) : (r[c.key] ?? '—')}
+                      {/* Trombone : nombre de documents rattachés, sur la première colonne. */}
+                      {i === 0 && r.documents_count > 0 && (
+                        <span className="ml-1.5 inline-flex items-center text-xs font-normal text-slate-400" title={t('Documents rattachés')}>
+                          <Paperclip size={12} />
+                          {r.documents_count}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
