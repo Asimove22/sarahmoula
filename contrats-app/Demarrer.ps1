@@ -23,11 +23,23 @@ function Open-AppWindow {
   try { Start-Process 'msedge' -ArgumentList "--app=$url" } catch { Start-Process $url }
 }
 
+function Test-Clausia {
+  try { return (Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2 -UseBasicParsing).app -eq 'contrats-app' } catch { return $false }
+}
+
 # Déjà démarrée : on ouvre simplement la fenêtre.
-try {
-  $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2 -UseBasicParsing
-  if ($health.app -eq 'contrats-app') { Open-AppWindow; exit 0 }
-} catch { }
+if (Test-Clausia) { Open-AppWindow; exit 0 }
+
+# Une copie est en train de démarrer (démarrage automatique, PC encore lent après l'ouverture de session) :
+# on attend qu'elle réponde au lieu d'en lancer une seconde.
+$listening = $null
+try { $listening = Get-NetTCPConnection -LocalPort 4580 -State Listen -ErrorAction Stop } catch { }
+if ($listening) {
+  for ($i = 0; $i -lt 90; $i++) {
+    if (Test-Clausia) { Open-AppWindow; exit 0 }
+    Start-Sleep -Seconds 1
+  }
+}
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Show-Message "Node.js n'est pas installé.`nTéléchargez la version LTS sur https://nodejs.org puis relancez."
@@ -58,16 +70,16 @@ $server = Start-Process -FilePath 'node' -ArgumentList '--disable-warning=Experi
   -WorkingDirectory $root -WindowStyle Hidden -PassThru `
   -RedirectStandardOutput "$root\data\journal-application.log" -RedirectStandardError $errLog
 
-# On vérifie que le serveur répond ; sinon on explique pourquoi au lieu de ne rien afficher.
-for ($i = 0; $i -lt 40; $i++) {
-  Start-Sleep -Milliseconds 500
-  try {
-    $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2 -UseBasicParsing
-    if ($health.app -eq 'contrats-app') { exit 0 }
-  } catch { }
+# On attend que le serveur réponde (jusqu'à 2 minutes : le premier démarrage après une mise à jour ou
+# l'ouverture de session peut être lent, l'antivirus analysant les fichiers). Le serveur ouvre lui-même la fenêtre.
+for ($i = 0; $i -lt 120; $i++) {
+  Start-Sleep -Seconds 1
+  if (Test-Clausia) { exit 0 }
   if ($server.HasExited) { break }
 }
 if ($SansFenetre) { exit 1 }
+# Toujours en cours de démarrage (pas d'erreur) : on ouvre la fenêtre, la page s'affichera dès que possible.
+if (-not $server.HasExited) { Open-AppWindow; exit 0 }
 $detail = ''
 if (Test-Path $errLog) { $detail = (Get-Content $errLog -Tail 8 -ErrorAction SilentlyContinue) -join "`n" }
 $hint = if ($detail -match 'EADDRINUSE|4580 est d') { "Le port 4580 est occupé par un autre programme (souvent une ancienne copie de Clausia) : redémarrez le PC." } else { "Lancez Lancer.bat dans ce dossier pour voir le détail." }

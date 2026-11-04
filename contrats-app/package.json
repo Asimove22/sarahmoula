@@ -1,7 +1,7 @@
 {
   "name": "contrats-app",
   "private": true,
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Gestion contractuelle et documentaire (NEC3/NEC4, contrats français) – usage personnel, local",
   "type": "module",
   "engines": {
