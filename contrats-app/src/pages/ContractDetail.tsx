@@ -9,7 +9,7 @@ import { Insights } from '../components/Insights';
 import { LetterModal } from '../components/LetterModal';
 import { RegisterPanel } from '../components/RegisterPanel';
 import { Badge, FileDrop, Modal, toast, toastError } from '../components/ui';
-import { CE_FIELDS, CONTRACT_FIELDS, CORRESPONDENCE_FIELDS, ENTITY_LABELS, EW_FIELDS, frameworkLabel, isNec } from '../schemas';
+import { CE_FIELDS, CONTRACT_FIELDS, CORRESPONDENCE_FIELDS, ENTITY_LABELS, EW_FIELDS, frameworkLabel, isFidic, isNec } from '../schemas';
 import { addDaysIso, daysFromToday, fmtDate, fmtDateTime, fmtMoney, relativeDays, todayIso } from '../format';
 import { ReviewTab } from './contract/ReviewTab';
 import { OrganisationTab } from './contract/OrganisationTab';
@@ -31,7 +31,7 @@ const TABS = [
   { id: 'finances', label: 'Finances' },
   { id: 'ew', label: 'Early Warnings', nec: true },
   { id: 'ce', label: 'Compensation Events', nec: true },
-  { id: 'echanges', label: 'Échanges' },
+  { id: 'echanges', label: 'Correspondance' },
   { id: 'assistant', label: 'Assistant IA' },
   { id: 'journal', label: 'Historique' },
 ];
@@ -89,7 +89,9 @@ export function ContractDetail() {
 
   if (!contract) return <div className="text-sm text-slate-500">{t('Chargement…')}</div>;
   const nec = isNec(contract);
-  const tabs = TABS.filter((tb) => (!tb.nec || nec) && (!tb.pub || contract.framework === 'FR_PUBLIC'));
+  const tabs = TABS.filter((tb) => (!tb.nec || nec) && (!tb.pub || contract.framework === 'FR_PUBLIC' || isFidic(contract))).map((tb) =>
+    tb.id === 'marche' && isFidic(contract) ? { ...tb, label: 'FIDIC' } : tb,
+  );
   const goTab = (t: string, open?: number) => setParams(open ? { tab: t, open: String(open) } : { tab: t });
   const alerts = (t: string) => insights.filter((i) => i.tab === t && i.level !== 'info').length;
 
@@ -375,6 +377,8 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [triage, setTriage] = useState<{ message: Rec; result: Rec; close: () => void } | null>(null);
+  const [theme, setTheme] = useState('');
+  const [crit, setCrit] = useState('');
 
   const importFiles = async (files: File[]) => {
     setBusy(true);
@@ -423,9 +427,11 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
       <RegisterPanel
         table="correspondence"
         contractId={contractId}
-        title={t('Registre des échanges')}
+        title={t('Registre de la correspondance')}
         addLabel="Saisir un échange"
-        emptyText="Aucun échange. Glissez des emails (.eml, .msg) ou des courriers (PDF) dans la zone ci-dessus."
+        emptyText="Aucun échange. Glissez des emails (.eml, .msg) ou des courriers (PDF, Word, PowerPoint) dans la zone ci-dessus : ils sont classés automatiquement par thème et criticité."
+        rowFilter={(r) => (!theme || r.theme === theme) && (!crit || r.criticality === crit)}
+        renderTop={(rows) => <CorrespondenceFilters rows={rows} theme={theme} crit={crit} setTheme={setTheme} setCrit={setCrit} />}
         fields={CORRESPONDENCE_FIELDS}
         defaults={{ direction: 'entrant', date: todayIso(), status: 'à traiter', type: 'Courrier' }}
         docLink="correspondence_id"
@@ -456,12 +462,13 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
               <option value="sortant">{t('Échanges envoyés')}</option>
             </select>
             <div className="min-w-[260px] flex-1">
-              <FileDrop compact onFiles={importFiles} label={busy ? t('Import en cours…') : t('Déposez ici emails Outlook (.msg), .eml ou PDF : objet, expéditeur, date et pièces jointes sont lus automatiquement')} />
+              <FileDrop compact onFiles={importFiles} label={busy ? t('Import en cours…') : t('Déposez ici emails Outlook (.msg), .eml, courriers PDF, Word ou PowerPoint : objet, date, pièces jointes, thème et criticité sont lus automatiquement')} />
             </div>
           </div>
         }
         columns={[
           { key: 'reference', label: 'Réf.', className: 'whitespace-nowrap font-medium' },
+          { key: 'criticality', label: 'Criticité', render: (r) => <span title={classificationTitle(r)}><Badge value={r.criticality} /></span> },
           { key: 'date', label: 'Date', render: dateCell('date'), className: 'whitespace-nowrap' },
           {
             key: 'direction',
@@ -475,8 +482,7 @@ function CorrespondenceTab({ contract, openId, onChange, onGoTab }: { contract: 
               <>
                 {r.subject}
                 <div className="text-xs text-slate-400">
-                  {r.type}
-                  {r.documents_count > 0 && ` · ${r.documents_count} fichier(s)`}
+                  {t(r.theme ?? '')} · {t(r.type ?? '')}
                 </div>
               </>
             ),
@@ -540,6 +546,46 @@ function JournalTab({ contractId }: { contractId: number }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const CRIT_ORDER = ['critique', 'haute', 'moyenne', 'faible'];
+const classificationTitle = (r: Rec) => {
+  try {
+    const c = JSON.parse(r.classification ?? '{}');
+    return `${t('Classement')} : ${t(c.source ?? 'règles')}${c.reasons?.length ? ` – ${c.reasons.join(', ')}` : ''}`;
+  } catch {
+    return '';
+  }
+};
+
+/** Compteurs cliquables par criticité et par thème (filtres du registre de correspondance). */
+function CorrespondenceFilters({ rows, theme, crit, setTheme, setCrit }: { rows: Rec[]; theme: string; crit: string; setTheme: (v: string) => void; setCrit: (v: string) => void }) {
+  if (!rows.length) return null;
+  const count = (k: string, v: string) => rows.filter((r) => r[k] === v && (k === 'theme' ? !crit || r.criticality === crit : !theme || r.theme === theme)).length;
+  const themes = [...new Set(rows.map((r) => r.theme).filter(Boolean))].sort((a, b) => count('theme', b) - count('theme', a));
+  const pill = (active: boolean) => `rounded-full border px-2.5 py-0.5 text-xs ${active ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-brand-300'}`;
+  return (
+    <div className="card space-y-2 p-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Criticité')}</span>
+        <button className={pill(!crit)} onClick={() => setCrit('')}>{t('Toutes')}</button>
+        {CRIT_ORDER.filter((c) => count('criticality', c)).map((c) => (
+          <button key={c} className={pill(crit === c)} onClick={() => setCrit(crit === c ? '' : c)}>
+            {t(c)} · {count('criticality', c)}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Thème')}</span>
+        <button className={pill(!theme)} onClick={() => setTheme('')}>{t('Tous')}</button>
+        {themes.map((th) => (
+          <button key={th} className={pill(theme === th)} onClick={() => setTheme(theme === th ? '' : th)}>
+            {t(th)} · {count('theme', th)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

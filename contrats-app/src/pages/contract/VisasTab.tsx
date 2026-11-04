@@ -19,6 +19,7 @@ export function VisasTab({ contract, openId, onChange, onOpen }: { contract: Rec
       defaults={{ revision: 'A', visa_status: 'en attente', submitted_date: todayIso() }}
       docLink="submittal_id"
       docCategory="Visa / Document technique"
+      importDocs="Déposez les documents à viser (PDF, Word, plans…) : un visa est créé par fichier, n° et indice lus dans le nom ou le cartouche"
       openId={openId}
       onChange={onChange}
       rowClassName={(r) => (r.overdue ? 'bg-red-50' : '')}

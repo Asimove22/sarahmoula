@@ -3,7 +3,7 @@ import { GitCompare, Network, Trash2, Upload } from 'lucide-react';
 import { api, type Rec } from '../../api';
 import { RegisterPanel } from '../../components/RegisterPanel';
 import { Timeline } from '../../components/Timeline';
-import { Badge, Empty, Modal, SubTabs, toast, toastError } from '../../components/ui';
+import { Badge, Empty, FileDrop, Modal, SubTabs, toast, toastError } from '../../components/ui';
 import { MILESTONE_FIELDS, PROGRAMME_FIELDS, WBS_FIELDS, isNec } from '../../schemas';
 import { daysFromToday, fmtDate, fmtDateTime, fmtMoney, relativeDays, todayIso } from '../../format';
 import { t } from '../../i18n';
@@ -370,10 +370,27 @@ function Gantt({ imp, contractEnd }: { imp: Rec; contractEnd?: string }) {
 }
 
 function WbsPanel({ contract, onChange }: { contract: Rec; onChange: () => void }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const importWbs = async (files: File[]) => {
+    setBusy(true);
+    try {
+      const out = await api.upload<Rec>(`/api/contracts/${contract.id}/wbs/import`, files.slice(0, 1));
+      toast(t('WBS importée ({source}) : {created} élément(s) créé(s), {updated} mis à jour', { source: t(out.source), created: out.created, updated: out.updated }));
+      setRefreshKey((k) => k + 1);
+      onChange();
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <RegisterPanel
       table="wbs_items"
       contractId={contract.id}
+      refreshKey={refreshKey}
+      toolbar={<FileDrop compact multiple={false} onFiles={importWbs} label={busy ? t('Lecture de la WBS…') : t('Importez une WBS : Excel / CSV (Code, Intitulé…), MS Project (.xml), Primavera (.xer), PDF ou Word (lignes « 1.2.3 Intitulé »)')} />}
       title={t('Structure de découpage (WBS)')}
       addLabel="Ajouter un élément"
       emptyText="Créez la WBS à la main ou depuis un planning importé (bouton réseau dans la liste des plannings). Les codes WBS servent aussi dans la matrice RACI."

@@ -170,7 +170,12 @@ export function Settings() {
         <h2 className="font-semibold">{t('Marchés publics')}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {field('ecb_rate', 'Taux de la BCE (%)', { placeholder: 'ex. 2.15' })}
+          {field('insee_api_key', 'Clé API INSEE (facultative)', { placeholder: 'seulement si l’INSEE l’exige' })}
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.indices_auto !== '0'} onChange={(e) => set('indices_auto', e.target.checked ? '1' : '0')} />
+          {t('Récupérer automatiquement les indices de prix (BT, TP…) auprès de l’INSEE dès leur publication')}
+        </label>
         <p className="text-xs text-slate-500">
           {t('Taux d’intérêt des opérations principales de refinancement de la BCE en vigueur au premier jour du semestre où les intérêts ont commencé à courir. Les intérêts moratoires sont calculés à ce taux majoré de 8 points (CCP, art. R2192-31). Mettez-le à jour chaque semestre.')}
         </p>

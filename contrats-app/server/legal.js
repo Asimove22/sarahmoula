@@ -169,7 +169,8 @@ export function derivePublic(table, row, c) {
     const due = serviceOrderDue(row);
     return { ...row, computed_reserves_due: due, overdue: Boolean(due && !row.reserves_date && row.status === 'reçu' && due < today()) };
   }
-  if (table === 'claims') return { ...row, ...Object.fromEntries(Object.entries(claimDates(row)).map(([k, v]) => [`computed_${k}`, v])) };
+  // Les claims FIDIC ont leurs propres délais (calculés dans rules.derive).
+  if (table === 'claims' && !String(c.framework).startsWith('FIDIC')) return { ...row, ...Object.fromEntries(Object.entries(claimDates(row)).map(([k, v]) => [`computed_${k}`, v])) };
   if (table === 'subcontractors') return { ...row, direct_payment_required: directPaymentRequired(row, c) };
   return row;
 }

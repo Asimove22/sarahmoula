@@ -4,6 +4,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { DOC_LINKS, columnsOf, toSql, logJournal, getSettings, setSettings } from './db.js';
 import { parseInvoice, parseLetter } from './invoice.js';
+import { classifyCorrespondence } from './classify.js';
+import { computeRevision, ensureIndex, indexCatalog, parseMonth, refreshIndices, revisionSummary, upsertIndexValue, usedIndexCodes } from './revision.js';
 import { computeDeadlines, today, addDays } from './deadlines.js';
 import { buildIcs } from './ics.js';
 import { parseEmail } from './mail.js';
@@ -12,12 +14,15 @@ import { extractDocumentText, indexDocument, unindexDocument, ftsQuery } from '.
 import { parseSchedule } from './schedule.js';
 import { buildLetter, listTemplates, renderDocx, TEMPLATES } from './letters.js';
 import { derive, extraDeadlines, financeSummary, computeInsights, reviewTemplateFor } from './rules.js';
-import { AI_DEFAULTS, aiStatus, askContract, effectiveMode, draftLetter, reviewContract, startOllamaPull, testProvider, triageCorrespondence } from './ai.js';
+import { analyzeContractText, mergeAi } from './contract-analyze.js';
+import { parseWbs } from './wbs-import.js';
+import { AI_DEFAULTS, aiStatus, analyzeDocument, askContract, effectiveMode, extractContractFields, draftLetter, reviewContract, startOllamaPull, testProvider, triageCorrespondence } from './ai.js';
 import { createOcr, needsOcr } from './ocr.js';
 import { createReviewWatch, acceptUpdate } from './review-watch.js';
-import { KINDS, buildExport, buildTemplate, prepareImport } from './imports.js';
+import { KINDS, buildExport, buildTemplate, prepareImport, readWorkbook } from './imports.js';
 import { listBackups } from './backup.js';
-import { BUYERS, CCAG, derivePublic, lateInterest, referential } from './legal.js';
+import { BUYERS, CCAG, addMonths, derivePublic, lateInterest, referential } from './legal.js';
+import { AGREEMENT_TYPES, FIDIC_BOOKS, agreementSummary, fidicReferential, isFidic } from './fidic.js';
 import { localizeList, translate, wantsEnglish } from './i18n.js';
 
 const LABELS = {
@@ -42,6 +47,7 @@ const LABELS = {
   service_orders: 'ordre de service',
   claims: 'réclamation',
   subcontractors: 'sous-traitant',
+  orders: 'bon de commande',
 };
 
 // Ordre de lecture des pièces pour l'IA : les pièces contractuelles d'abord.
@@ -98,7 +104,16 @@ export function createApp({ db, dataDir, onShutdown }) {
   };
   const contractOf = (row, table) => (table === 'contracts' ? row.id : row.contract_id);
 
+  /** Thème et criticité d'un échange (sauf si l'utilisateur les a fixés lui-même). */
+  function classifyInto(body, text) {
+    const r = classifyCorrespondence({ ...body, text });
+    body.theme = r.theme;
+    body.criticality = r.criticality;
+    body.classification = JSON.stringify({ source: 'règles', reasons: r.reasons });
+  }
+
   function insert(table, body) {
+    if (table === 'correspondence' && !body.theme) classifyInto(body, body._text);
     const cols = columns[table].filter((c) => c in body && c !== 'updated_at');
     if (table !== 'contracts' && !body.contract_id) throw new HttpError(400, 'contract_id manquant');
     const result = db
@@ -112,6 +127,14 @@ export function createApp({ db, dataDir, onShutdown }) {
 
   function update(table, id, body, allowed = columns[table]) {
     const before = getRow(table, id);
+    if (table === 'correspondence') {
+      const manual = ('theme' in body && body.theme !== before.theme) || ('criticality' in body && body.criticality !== before.criticality);
+      if (manual) body.classification = JSON.stringify({ source: 'manuel' });
+      else if (!String(before.classification ?? '').includes('manuel') && ['subject', 'summary', 'type', 'response_required', 'response_due'].some((k) => k in body && String(body[k] ?? '') !== String(before[k] ?? ''))) {
+        const text = db.prepare("SELECT group_concat(content_text, '\n') AS t FROM documents WHERE correspondence_id = ?").get(id)?.t;
+        classifyInto(Object.assign(body, { ...before, ...body }), text);
+      }
+    }
     const cols = allowed.filter((c) => c in body && !['contract_id', 'updated_at'].includes(c));
     if (cols.length) {
       db.prepare(`UPDATE ${table} SET ${cols.map((c) => `${c} = ?`).join(', ')}, updated_at = datetime('now','localtime') WHERE id = ?`)
@@ -198,6 +221,7 @@ export function createApp({ db, dataDir, onShutdown }) {
     service_orders: { prefix: () => 'OS', numberCol: 'number', order: 't.number DESC' },
     claims: { prefix: () => 'REC', numberCol: 'number', order: 't.number DESC' },
     subcontractors: { order: 't.company' },
+    orders: { prefix: (b) => (b.kind === 'marché subséquent' ? 'MS' : 'BC'), numberCol: 'number', order: 't.number DESC' },
   };
 
   const enrich = (table, rows) => {
@@ -212,6 +236,7 @@ export function createApp({ db, dataDir, onShutdown }) {
       if (table === 'payments' && c.framework === 'FR_PUBLIC') {
         row.late_interest = lateInterest({ amount: row.amount_validated ?? row.amount_requested, dueDate: row.computed_due_date, paidDate: row.paid_date, ecbRate });
       }
+      if (table === 'payments' && c.rev_enabled) row.revision = computeRevision(db, row, c);
       return row;
     });
   };
@@ -362,6 +387,39 @@ export function createApp({ db, dataDir, onShutdown }) {
         };
       },
     },
+    orders: {
+      category: 'Pièce jointe',
+      build: (text, name) => {
+        const l = parseLetter(text, name);
+        const inv = parseInvoice(text);
+        const number = text.match(/(?:bon\s+de\s+commande|commande|march[ée]\s+subs[ée]quent|purchase\s+order|PO)\s*(?:n[°ºo]\.?|num[ée]ro|#)\s*:?\s*([A-Z0-9][A-Z0-9/_.-]{0,30})/i)?.[1];
+        const amount = inv.amount_ht ?? l.amount ?? inv.amount_ttc;
+        return {
+          record: { title: l.title, issued_date: l.date, amount, status: 'émis', kind: /subs[ée]quent/i.test(text + name) ? 'marché subséquent' : 'bon de commande',
+            notes: `Créé depuis « ${name} »${number ? ` (n° ${number})` : ''}. Montant lu automatiquement : à vérifier.` },
+          doc: { reference: number ?? l.reference, doc_date: l.date },
+          found: [amount, l.date, number].filter(Boolean).length,
+        };
+      },
+    },
+    submittals: {
+      category: 'Visa / Document technique',
+      build: (text, name) => {
+        const base = name.replace(/\.[^.]+$/, '');
+        // Codification type « PN1210D_06_ACT_STF_001306_4 » : le dernier segment court est l'indice.
+        const code = base.match(/^([A-Z0-9]+(?:[_-][A-Z0-9]+){2,})/i)?.[1];
+        const fromName = code?.match(/^(.*)[_-]([A-Z]|\d{1,2})$/i);
+        const revision = text.match(/\b(?:indice|ind\.|r[ée]vision|rev\.?)\s*:?\s*([A-Z]|\d{1,2})\b/i)?.[1] ?? fromName?.[2] ?? 'A';
+        const number = fromName?.[1] ?? code ?? null;
+        const title = text.match(/(?:titre|intitul[ée]|d[ée]signation|objet)\s*:\s*([^\n]{4,160})/i)?.[1]?.trim() ?? (code ? base.slice(code.length).replace(/^[\s_-]+/, '') || base : base).replace(/[_-]+/g, ' ').trim();
+        const discipline = /g[ée]nie civil|\bGC\b|b[ée]ton|ferraillage/i.test(text + name) ? 'Génie civil' : /[ée]lectri|\bCFO\b|\bCFA\b|\bELEC\b/i.test(text + name) ? 'Électricité' : /CVC|chauffage|ventilation|climatisation|plomberie/i.test(text + name) ? 'CVC / plomberie' : /structure|charpente|m[ée]tal/i.test(text + name) ? 'Structure' : null;
+        return {
+          record: { number, revision: String(revision).toUpperCase(), title, discipline, submitted_date: today(), visa_status: 'en attente', comments: `Créé depuis « ${name} ».` },
+          doc: { reference: number },
+          found: [code, discipline].filter(Boolean).length,
+        };
+      },
+    },
     amendments: {
       category: 'Avenant',
       build: (text, name) => {
@@ -389,13 +447,65 @@ export function createApp({ db, dataDir, onShutdown }) {
       const { record, doc, found } = importer.build(text, filename);
       const cfg = registers[table];
       const body = { ...Object.fromEntries(Object.entries(record).filter(([, v]) => v !== null && v !== undefined && v !== '')), contract_id: contractId };
-      body[cfg.numberCol] = nextNumber(db, table, cfg.numberCol, contractId, cfg.prefix(body));
+      if (!body[cfg.numberCol]) body[cfg.numberCol] = nextNumber(db, table, cfg.numberCol, contractId, cfg.prefix(body));
       const row = insert(table, body);
       await storeDocument({ contractId, buffer: f.buffer, filename, mime: f.mimetype,
         meta: { category: importer.category, title: record.title || filename.replace(/\.[^.]+$/, ''), ...Object.fromEntries(Object.entries(doc).filter(([, v]) => v)), [DOC_LINKS[table]]: row.id } });
       created.push({ ...enrich(table, [getRow(table, row.id)])[0], read_fields: found, text_found: Boolean(text) });
     }
     return created;
+  }));
+
+  // ---------- WBS : import depuis Excel, MS Project, P6 ou un document ----------
+  app.post('/api/contracts/:id/wbs/import', upload.array('files'), h(async (req) => {
+    const contract = getRow('contracts', req.params.id);
+    const file = req.files?.[0];
+    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
+    let parsed;
+    try {
+      parsed = await parseWbs(file.originalname, file.buffer);
+    } catch (e) {
+      throw new HttpError(400, `Fichier illisible : ${e.message}`);
+    }
+    if (!parsed.items.length) throw new HttpError(400, 'Aucun élément WBS reconnu : il faut des codes (1, 1.1, 1.1.2…) suivis d’un intitulé, ou des colonnes Code / Intitulé.');
+    let created = 0;
+    let updated = 0;
+    for (const it of parsed.items) {
+      const existing = db.prepare('SELECT * FROM wbs_items WHERE contract_id = ? AND code = ?').get(contract.id, it.code);
+      const values = Object.fromEntries(Object.entries({ title: it.title, parent_code: it.parent_code, budget: it.budget, owner: it.owner }).filter(([, v]) => v !== null && v !== undefined && v !== ''));
+      if (existing) { update('wbs_items', existing.id, values); updated += 1; }
+      else { insert('wbs_items', { contract_id: contract.id, code: it.code, ...values }); created += 1; }
+    }
+    await storeDocument({ contractId: contract.id, buffer: file.buffer, filename: file.originalname, mime: file.mimetype, meta: { category: 'WBS', doc_date: today() } });
+    return { created, updated, total: parsed.items.length, source: parsed.source };
+  }));
+
+  // ---------- Assistant IA : analyse d'un fichier déposé ----------
+  app.post('/api/contracts/:id/ai/analyze-file', upload.array('files'), h(async (req) => {
+    const contract = getRow('contracts', req.params.id);
+    const file = req.files?.[0];
+    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
+    const { text } = await extractDocumentText(file.originalname, file.buffer);
+    const letter = parseLetter(text ?? '', file.originalname);
+    const cls = classifyCorrespondence({ subject: letter.title, text });
+    const category = req.body.category || ({ 'Paiement / facturation': 'Facture / Situation', 'Modification / avenant': 'Avenant', 'Ordre de service / instruction': 'Ordre de service', 'Réclamation / différend': 'Réclamation / Mémoire', 'Technique / visa': 'Visa / Document technique', 'Réunion / compte rendu': 'Compte rendu / PV' }[cls.theme] ?? 'Pièce jointe');
+    const doc = stripText(await storeDocument({ contractId: contract.id, buffer: file.buffer, filename: file.originalname, mime: file.mimetype, meta: { category, title: letter.title, doc_date: letter.date } }));
+    // Lecture par règles, toujours disponible ; l'IA complète si elle est active.
+    const rules = {
+      document_type: category,
+      summary: [letter.title, letter.date && `daté du ${letter.date}`, letter.reference && `réf. ${letter.reference}`].filter(Boolean).join(' – '),
+      key_points: [letter.amount != null && `Montant mentionné : ${money(letter.amount)}`, letter.days && `Délai mentionné : ${letter.days} jours`, `Thème : ${cls.theme}`, `Criticité estimée : ${cls.criticality}${cls.reasons.length ? ` (${cls.reasons.join(', ')})` : ''}`].filter(Boolean),
+      obligations: [],
+      risks: cls.criticality === 'critique' || cls.criticality === 'haute' ? [{ text: `Document classé « ${cls.criticality} » : ${cls.reasons.join(', ')}`, level: cls.criticality === 'critique' ? 'critique' : 'élevé' }] : [],
+      suggested_actions: [],
+      provider: 'règles',
+    };
+    if (!text) return { document: doc, analysis: { ...rules, summary: 'Aucun texte lisible (scan) : l’OCR va traiter le document, relancez l’analyse ensuite.' }, ai_error: null };
+    try {
+      return { document: doc, analysis: await analyzeDocument(db, contract, { title: file.originalname, text }), ai_error: null };
+    } catch (e) {
+      return { document: doc, analysis: rules, ai_error: e.message };
+    }
   }));
 
   // ---------- Import d'échanges par glisser-déposer (.eml, .msg, PDF…) ----------
@@ -412,16 +522,20 @@ export function createApp({ db, dataDir, onShutdown }) {
       } catch (e) {
         console.warn(`Impossible de lire l'email ${filename} :`, e.message);
       }
+      // Courrier PDF / Word / PowerPoint : objet, date et référence lus dans le document.
+      const letterText = email ? '' : (await extractDocumentText(filename, f.buffer)).text;
+      const letter = email ? null : parseLetter(letterText, filename);
       const record = {
         contract_id: contractId,
         direction,
-        type: email ? 'Email' : 'Courrier',
-        subject: email?.subject || filename.replace(/\.[^.]+$/, ''),
+        type: email ? 'Email' : /mise en demeure/i.test(letterText.slice(0, 3000)) ? 'Mise en demeure' : /ordre de service/i.test(letterText.slice(0, 1500)) ? 'Ordre de service' : 'Courrier',
+        subject: email?.subject || letter?.title || filename.replace(/\.[^.]+$/, ''),
         sender: email?.sender ?? null,
         recipient: email?.recipient ?? null,
-        date: email?.date || today(),
-        summary: email?.body ? email.body.slice(0, 4000) : null,
+        date: email?.date || letter?.date || today(),
+        summary: email?.body ? email.body.slice(0, 4000) : letterText ? letterText.slice(0, 1500) : null,
         status: direction === 'entrant' ? 'à traiter' : 'envoyé',
+        _text: letterText || email?.body || '',
       };
       record.reference = nextNumber(db, 'correspondence', 'reference', contractId, direction === 'sortant' ? 'SOR' : 'ENT');
       const row = insert('correspondence', record);
@@ -627,8 +741,126 @@ export function createApp({ db, dataDir, onShutdown }) {
   app.get('/api/legal/options', h(() => ({
     ccag: Object.entries(CCAG).map(([value, v]) => ({ value, label: v.label })),
     buyers: Object.entries(BUYERS).map(([value, v]) => ({ value, label: v.label, payment_days: v.paymentDays })),
+    fidic: Object.entries(FIDIC_BOOKS).map(([value, v]) => ({ value, label: v.label })),
+    agreements: Object.entries(AGREEMENT_TYPES).map(([value, label]) => ({ value, label })),
   })));
-  app.get('/api/contracts/:id/legal', h((req) => referential(getRow('contracts', req.params.id), getSettings(db))));
+  app.get('/api/contracts/:id/legal', h((req) => {
+    const c = getRow('contracts', req.params.id);
+    return isFidic(c) ? fidicReferential(c) : referential(c, getSettings(db));
+  }));
+  const readTable = async (name, buffer) => (await readWorkbook(name, buffer))[0]?.rows ?? [];
+
+  // ---------- Révision des prix et indices ----------
+  app.get('/api/contracts/:id/revision', h((req) => revisionSummary(db, getRow('contracts', req.params.id))));
+  app.get('/api/indices', h(() => indexCatalog(db)));
+  app.post('/api/indices', h((req) => {
+    const code = String(req.body.code ?? '').toUpperCase().trim();
+    if (!/^[A-Z0-9_.-]{2,20}$/.test(code)) throw new HttpError(400, 'Code d’indice invalide (ex. BT01, TP02)');
+    const idbank = String(req.body.idbank ?? '').replace(/\D/g, '') || null;
+    db.prepare(`INSERT INTO price_indices (code, label, idbank, auto, notes) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(code) DO UPDATE SET label = excluded.label, idbank = excluded.idbank, auto = excluded.auto, notes = excluded.notes`)
+      .run(code, req.body.label || code, idbank, req.body.auto === false || req.body.auto === 0 ? 0 : 1, req.body.notes || null);
+    return indexCatalog(db).find((i) => i.code === code);
+  }));
+  app.delete('/api/indices/:code', h((req) => (db.prepare('DELETE FROM price_indices WHERE code = ?').run(req.params.code), { ok: true })));
+  app.get('/api/indices/:code/values', h((req) => db.prepare('SELECT * FROM index_values WHERE code = ? ORDER BY month DESC').all(req.params.code)));
+  app.post('/api/indices/:code/values', h((req) => {
+    const code = req.params.code.toUpperCase();
+    ensureIndex(db, code);
+    if (!parseMonth(req.body.month) || !(Number(String(req.body.value).replace(',', '.')) > 0)) throw new HttpError(400, 'Mois ou valeur invalide');
+    upsertIndexValue(db, { code, month: req.body.month, value: String(req.body.value), status: req.body.status || 'définitif' });
+    return db.prepare('SELECT * FROM index_values WHERE code = ? ORDER BY month DESC').all(code);
+  }));
+  app.delete('/api/indices/:code/values/:month', h((req) => (db.prepare('DELETE FROM index_values WHERE code = ? AND month = ?').run(req.params.code, req.params.month), { ok: true })));
+  /** Import Excel / CSV : colonnes Indice (ou Code), Mois (ou Date, Période), Valeur ; ou une colonne par indice. */
+  app.post('/api/indices/import', upload.array('files'), h(async (req) => {
+    const file = req.files?.[0];
+    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
+    const rows = await readTable(file.originalname, file.buffer);
+    if (!rows.length) throw new HttpError(400, 'Fichier vide ou illisible');
+    const head = rows[0].map((h) => String(h ?? '').trim());
+    const norm = head.map((h) => h.toLowerCase());
+    const iCode = norm.findIndex((h) => /^(indice|index|code)/.test(h));
+    const iMonth = norm.findIndex((h) => /^(mois|date|p[ée]riode|month)/.test(h));
+    const iValue = norm.findIndex((h) => /^(valeur|value)/.test(h));
+    let count = 0;
+    const touched = new Set();
+    for (const r of rows.slice(1)) {
+      if (iMonth < 0) break;
+      if (iCode >= 0 && iValue >= 0) {
+        const code = String(r[iCode] ?? '').toUpperCase().trim();
+        if (!code) continue;
+        ensureIndex(db, code);
+        if (upsertIndexValue(db, { code, month: r[iMonth], value: String(r[iValue] ?? '') })) { count += 1; touched.add(code); }
+      } else {
+        // Format « large » : Mois | BT01 | TP01 …
+        head.forEach((h, i) => {
+          if (i === iMonth || !h) return;
+          const code = h.toUpperCase();
+          ensureIndex(db, code);
+          if (upsertIndexValue(db, { code, month: r[iMonth], value: String(r[i] ?? '') })) { count += 1; touched.add(code); }
+        });
+      }
+    }
+    if (!count && iMonth < 0) throw new HttpError(400, 'Colonne « Mois » (ou Date / Période) introuvable');
+    return { imported: count, indices: [...touched] };
+  }));
+  app.post('/api/indices/refresh', h(async (req) => {
+    const settings = getSettings(db);
+    const result = await refreshIndices(db, { codes: req.body?.codes, apiKey: settings.insee_api_key || undefined });
+    return { result, catalog: indexCatalog(db) };
+  }));
+  /** Veille automatique : à l'ouverture puis toutes les 6 heures, indices utilisés par une formule active. */
+  app.locals.startIndexWatch = () => {
+    const run = async () => {
+      const settings = getSettings(db);
+      if (settings.indices_auto === '0') return;
+      const codes = usedIndexCodes(db);
+      if (!codes.length) return;
+      const res = await refreshIndices(db, { codes, apiKey: settings.insee_api_key || undefined }).catch(() => []);
+      const added = res.filter((r) => r.added?.length);
+      if (added.length) console.log(`  Indices publiés : ${added.map((r) => `${r.code} ${r.added.at(-1)}`).join(', ')}`);
+    };
+    run();
+    return setInterval(run, 6 * 3600 * 1000).unref();
+  };
+
+  // ---------- Création d'un contrat à partir de son document : lecture et pré-remplissage ----------
+  app.post('/api/contracts/analyze', upload.array('files'), h(async (req) => {
+    const file = req.files?.[0];
+    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
+    let { text } = await extractDocumentText(file.originalname, file.buffer);
+    let ocrUsed = false;
+    if ((text ?? '').length < 200 && ocrEnabled()) {
+      const r = await ocr.readBuffer(file.originalname, file.buffer).catch(() => ({ text: '' }));
+      if (r.text?.length > (text ?? '').length) { text = r.text; ocrUsed = true; }
+    }
+    if (!text || text.length < 50) return { values: {}, sources: {}, method: 'aucune', warning: 'Aucun texte lisible : document scanné sans OCR, protégé ou vide. Remplissez la fiche à la main ; le document sera archivé.' };
+    const rules = analyzeContractText(text);
+    let result = { ...rules, fromAi: [] };
+    let method = 'règles';
+    let aiError = null;
+    if (req.body.use_ai !== '0' && effectiveMode(db, null) !== 'off') {
+      try {
+        const ai = await extractContractFields(db, text);
+        result = mergeAi(rules, ai);
+        method = `règles + IA (${ai.provider === 'claude' ? 'Claude' : 'locale'})`;
+      } catch (e) {
+        aiError = e.message;
+      }
+    }
+    const v = result.values;
+    // Date d'achèvement déduite du délai d'exécution quand le contrat ne la donne pas.
+    if (!v.completion_date && v.start_date && v._duration) {
+      const [n, unit] = v._duration.split(' ');
+      v.completion_date = unit === 'mois' ? addMonths(v.start_date, Number(n)) : addDays(v.start_date, Number(n) * (unit === 'semaines' ? 7 : 1));
+    }
+    const duration = v._duration;
+    delete v._duration;
+    return { values: v, sources: result.sources, from_ai: result.fromAi, method, ai_error: aiError, duration, ocr: ocrUsed, chars: text.length };
+  }));
+
+  app.get('/api/contracts/:id/agreement', h((req) => agreementSummary(db, getRow('contracts', req.params.id))));
 
   // ---------- Points d'attention, finances ----------
   app.get('/api/insights', h((req) => localizeList(computeInsights(db, { contractId: req.query.contract_id }), wantsEnglish(req))));
@@ -808,7 +1040,7 @@ export function createApp({ db, dataDir, onShutdown }) {
   };
   app.get('/api/settings', h(() => publicSettings()));
   app.put('/api/settings', h((req) => {
-    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key', 'ocr_mode', 'review_watch_ai', 'ecb_rate'];
+    const allowed = ['company_name', 'company_address', 'city', 'signatory_name', 'signatory_title', 'ai_mode', 'ollama_url', 'ollama_model', 'claude_model', 'claude_effort', 'claude_api_key', 'ocr_mode', 'review_watch_ai', 'ecb_rate', 'insee_api_key', 'indices_auto'];
     const values = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
     // Une clé vide envoyée par le formulaire ne remplace pas la clé enregistrée.
     if (values.claude_api_key === '' || values.claude_api_key === undefined) delete values.claude_api_key;
@@ -871,11 +1103,17 @@ export function createApp({ db, dataDir, onShutdown }) {
     const entity = template ? letterEntity(template, req.body.entity_id) : null;
     return draftLetter(db, contract, { subject: req.body.subject, body: req.body.body, instructions: req.body.instructions, facts: entity ? stripText(entity) : {} });
   }));
-  app.post('/api/ai/triage', h((req) => {
+  app.post('/api/ai/triage', h(async (req) => {
     const message = getRow('correspondence', req.body.correspondence_id);
     const contract = getRow('contracts', message.contract_id);
     const attachments = db.prepare("SELECT title, content_text FROM documents WHERE correspondence_id = ? AND text_status IN ('ok', 'ocr')").all(message.id);
-    return triageCorrespondence(db, contract, message, attachments.map((a) => `## ${a.title}\n${a.content_text}`).join('\n\n'));
+    const out = await triageCorrespondence(db, contract, message, attachments.map((a) => `## ${a.title}\n${a.content_text}`).join('\n\n'));
+    // L'IA affine le classement, sauf s'il a été fixé à la main.
+    if (out.theme && !String(message.classification ?? '').includes('manuel')) {
+      db.prepare('UPDATE correspondence SET theme = ?, criticality = ?, classification = ? WHERE id = ?')
+        .run(out.theme, out.criticality, JSON.stringify({ source: 'IA', reasons: [out.risk_reason].filter(Boolean) }), message.id);
+    }
+    return out;
   }));
 
   // ================= V3 =================
@@ -1078,6 +1316,13 @@ export function createApp({ db, dataDir, onShutdown }) {
     if (fs.existsSync(index)) res.sendFile(index);
     else res.status(503).send('Interface non construite : lancez « npm run build ».');
   });
+
+  // Échanges enregistrés avant le classement automatique : thème et criticité calculés une fois.
+  for (const m of db.prepare('SELECT * FROM correspondence WHERE theme IS NULL').all()) {
+    const text = db.prepare("SELECT group_concat(content_text, '\n') AS t FROM documents WHERE correspondence_id = ?").get(m.id)?.t;
+    const r = classifyCorrespondence({ ...m, text });
+    db.prepare('UPDATE correspondence SET theme = ?, criticality = ?, classification = ? WHERE id = ?').run(r.theme, r.criticality, JSON.stringify({ source: 'règles', reasons: r.reasons }), m.id);
+  }
 
   app.use((req, res) => res.status(404).json({ error: 'Route inconnue' }));
   // eslint-disable-next-line no-unused-vars

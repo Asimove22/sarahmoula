@@ -71,6 +71,8 @@ const server = app.listen(PORT, '127.0.0.1', () => {
     .reindexMissing()
     .then((n) => n && console.log(`  ${n} document(s) indexé(s) pour la recherche plein texte.`))
     .catch((e) => console.warn('Indexation des documents interrompue :', e.message));
+  // Indices de prix (BT, TP…) : récupération automatique dès leur publication par l'INSEE.
+  app.locals.startIndexWatch();
   openWindow();
 });
 

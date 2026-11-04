@@ -127,6 +127,13 @@ export function createOcr(db, dataDir, { onDocumentText } = {}) {
   }
 
   return {
+    /** OCR immédiat d'un fichier qui n'est pas encore archivé (analyse d'un contrat scanné à la création). */
+    async readBuffer(filename, buffer) {
+      const ext = filename.toLowerCase().split('.').pop();
+      if (ext === 'pdf') return ocrPdf(buffer);
+      if (IMAGE_EXT.includes(ext)) return recognize(buffer);
+      return { text: '', confidence: 0 };
+    },
     enqueue(id) {
       if (queue.includes(id)) return;
       db.prepare("UPDATE documents SET text_status = 'ocr en attente' WHERE id = ?").run(id);

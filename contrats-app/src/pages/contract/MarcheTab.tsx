@@ -3,7 +3,7 @@ import { AlertTriangle, BookOpen, Scale } from 'lucide-react';
 import { api, type Rec } from '../../api';
 import { RegisterPanel } from '../../components/RegisterPanel';
 import { Badge, SubTabs, toastError } from '../../components/ui';
-import { BUYER_TYPES, CCAG_OPTIONS, CLAIM_FIELDS, SERVICE_ORDER_FIELDS, SUBCONTRACTOR_FIELDS } from '../../schemas';
+import { BUYER_TYPES, CCAG_OPTIONS, CLAIM_FIELDS, FIDIC_CLAIM_FIELDS, SERVICE_ORDER_FIELDS, SUBCONTRACTOR_FIELDS, frameworkLabel, isFidic } from '../../schemas';
 import { addDaysIso, daysFromToday, fmtDate, fmtMoney, relativeDays, todayIso } from '../../format';
 import { t } from '../../i18n';
 
@@ -29,6 +29,7 @@ const addMonthsIso = (iso: string, m: number) => {
 /** Marché public : référentiel (CCP, CCAG 2021), ordres de service, réclamations, sous-traitance, décompte. */
 export function MarcheTab({ contract, openId, entity, onChange }: { contract: Rec; openId?: number; entity?: string; onChange: () => void }) {
   const [sub, setSub] = useState(entity === 'claims' ? 'reclamations' : entity === 'subcontractors' ? 'sous-traitants' : entity === 'service_orders' ? 'os' : 'referentiel');
+  if (isFidic(contract)) return <FidicTab contract={contract} openId={entity === 'claims' ? openId : undefined} onChange={onChange} />;
   return (
     <div className="space-y-4">
       <SubTabs
@@ -126,6 +127,44 @@ export function MarcheTab({ contract, openId, entity, onChange }: { contract: Re
   );
 }
 
+/** FIDIC : référentiel des Conditions générales et registre des claims (Notice of Claim, fully detailed Claim). */
+function FidicTab({ contract, openId, onChange }: { contract: Rec; openId?: number; onChange: () => void }) {
+  const [sub, setSub] = useState(openId ? 'claims' : 'referentiel');
+  return (
+    <div className="space-y-4">
+      <SubTabs value={sub} onChange={setSub} tabs={[{ id: 'referentiel', label: t('Référentiel FIDIC') }, { id: 'claims', label: t('Claims') }]} />
+      {sub === 'referentiel' ? (
+        <Referential contract={contract} />
+      ) : (
+        <RegisterPanel
+          table="claims"
+          contractId={contract.id}
+          title={t('Registre des claims')}
+          addLabel={t('Nouveau claim')}
+          emptyText={t('Enregistrez chaque événement dès que vous en avez connaissance : la Notice of Claim doit partir sous 28 jours, sinon le claim est forclos.')}
+          fields={FIDIC_CLAIM_FIELDS}
+          defaults={{ status: 'différend', dispute_date: todayIso() }}
+          docLink="claim_id"
+          docCategory="Réclamation / Mémoire"
+          importDocs="Déposez des notices, claims ou courriers (PDF, Word…) : un claim est créé par fichier, avec le document joint"
+          openId={openId}
+          onChange={onChange}
+          columns={[
+            { key: 'number', label: 'N°', className: 'whitespace-nowrap font-medium' },
+            { key: 'title', label: 'Événement' },
+            { key: 'dispute_date', label: 'Connaissance', render: (r) => fmtDate(r.dispute_date), className: 'whitespace-nowrap' },
+            { key: 'notice', label: 'Notice of Claim', render: (r) => <DueCell date={r.computed_notice_due} done={r.notice_date} />, className: 'whitespace-nowrap' },
+            { key: 'detailed', label: 'Fully detailed Claim', render: (r) => <DueCell date={r.computed_memo_due} done={r.memo_sent_date} />, className: 'whitespace-nowrap' },
+            { key: 'response', label: 'Réponse Engineer', render: (r) => (r.memo_sent_date ? <DueCell date={r.computed_response_due} done={r.response_date} /> : '—'), className: 'whitespace-nowrap' },
+            { key: 'amount', label: 'Réclamé / obtenu', render: (r) => `${fmtMoney(r.amount_claimed, contract.currency)}${r.amount_obtained != null ? ` / ${fmtMoney(r.amount_obtained, contract.currency)}` : ''}`, className: 'whitespace-nowrap' },
+            { key: 'status', label: 'Statut', render: (r) => <Badge value={r.status} /> },
+          ]}
+        />
+      )}
+    </div>
+  );
+}
+
 function Referential({ contract }: { contract: Rec }) {
   const [rules, setRules] = useState<Rec[]>([]);
   useEffect(() => {
@@ -133,8 +172,17 @@ function Referential({ contract }: { contract: Rec }) {
   }, [contract.id]);
   const ccag = CCAG_OPTIONS.find((o) => o.value === contract.ccag)?.label;
   const buyer = BUYER_TYPES.find((o) => o.value === contract.buyer_type)?.label;
+  const fidic = isFidic(contract);
   return (
     <div className="space-y-3">
+      {fidic ? (
+        <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
+          <span className="flex items-center gap-2 font-semibold">
+            <Scale size={18} className="text-brand-600" /> {frameworkLabel(contract.framework)}
+          </span>
+          <span className="text-slate-500">{t('Délais des Conditions générales, modifiables dans la fiche contrat si les Particular Conditions diffèrent.')}</span>
+        </div>
+      ) : (
       <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
         <span className="flex items-center gap-2 font-semibold">
           <Scale size={18} className="text-brand-600" /> {t('Marché public')}
@@ -156,6 +204,7 @@ function Referential({ contract }: { contract: Rec }) {
           {fmtDate(contract.notification_date)}
         </span>
       </div>
+      )}
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50">
@@ -176,7 +225,7 @@ function Referential({ contract }: { contract: Rec }) {
                   <span className="flex items-start gap-1">
                     <BookOpen size={12} className="mt-0.5 shrink-0" /> {t(r.source)}
                   </span>
-                  {r.verify && <span className="mt-1 inline-block rounded bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800">{t('à vérifier dans le CCAP')}</span>}
+                  {r.verify && <span className="mt-1 inline-block rounded bg-amber-100 px-1.5 text-[10px] font-medium text-amber-800">{fidic ? t('à vérifier dans les Particular Conditions') : t('à vérifier dans le CCAP')}</span>}
                 </td>
               </tr>
             ))}
@@ -184,7 +233,7 @@ function Referential({ contract }: { contract: Rec }) {
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        {t('Référentiel indicatif : le CCAP prime sur le CCAG pour toutes les stipulations auxquelles il déroge expressément (liste des dérogations en fin de CCAP). Les règles du Code de la commande publique sont d’ordre public. En cas d’enjeu, faites valider par un juriste.')}
+        {fidic ? t('Référentiel indicatif : les Particular Conditions priment sur les Conditions générales. Vérifiez chaque délai dans votre contrat ; en cas d’enjeu, faites valider par un juriste.') : t('Référentiel indicatif : le CCAP prime sur le CCAG pour toutes les stipulations auxquelles il déroge expressément (liste des dérogations en fin de CCAP). Les règles du Code de la commande publique sont d’ordre public. En cas d’enjeu, faites valider par un juriste.')}
       </p>
     </div>
   );

@@ -1,6 +1,8 @@
 // Assistant IA : Ollama (local, par défaut) ou API Claude (activable contrat par contrat).
 import Anthropic from '@anthropic-ai/sdk';
 import { getSettings } from './db.js';
+import { CONTRACT_SCHEMA } from './contract-analyze.js';
+import { CORR_THEMES, CRITICALITIES } from './classify.js';
 
 export const AI_DEFAULTS = {
   ai_mode: 'ollama', // moteur par défaut : 'ollama' | 'claude' | 'off'
@@ -362,9 +364,11 @@ Rends uniquement le corps du courrier, en paragraphes séparés par une ligne vi
 const TRIAGE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'response_required', 'response_days', 'actions', 'risk', 'risk_reason'],
+  required: ['summary', 'response_required', 'response_days', 'actions', 'risk', 'risk_reason', 'theme', 'criticality'],
   properties: {
     summary: { type: 'string' },
+    theme: { type: 'string', enum: CORR_THEMES },
+    criticality: { type: 'string', enum: CRITICALITIES },
     response_required: { type: 'boolean' },
     response_days: { type: 'integer' },
     actions: { type: 'array', items: { type: 'string' } },
@@ -373,7 +377,64 @@ const TRIAGE_SCHEMA = {
   },
 };
 
-/** Analyse d'un échange reçu : résumé, réponse attendue, risque contractuel. */
+const DOC_ANALYSIS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['document_type', 'summary', 'key_points', 'obligations', 'risks', 'suggested_actions'],
+  properties: {
+    document_type: { type: 'string' },
+    summary: { type: 'string' },
+    key_points: { type: 'array', items: { type: 'string' } },
+    obligations: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['text', 'deadline', 'clause'], properties: { text: { type: 'string' }, deadline: { type: 'string' }, clause: { type: 'string' } } } },
+    risks: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['text', 'level'], properties: { text: { type: 'string' }, level: { type: 'string', enum: ['faible', 'moyen', 'élevé', 'critique'] } } } },
+    suggested_actions: { type: 'array', items: { type: 'string' } },
+  },
+};
+
+/** Analyse d'un document déposé dans l'assistant : synthèse, obligations et délais, risques, actions. */
+export async function analyzeDocument(db, contract, { title, text }) {
+  const provider = resolveProvider(db, contract);
+  const result = await completeJson(provider, {
+    system: SYSTEM,
+    schema: DOC_ANALYSIS_SCHEMA,
+    prompt: `${contractHeader(contract)}
+Analyse le document « ${title} » au regard de ce contrat :
+- document_type : nature du document (courrier, avenant, CCTP, compte rendu, facture…) ;
+- summary : synthèse en 5 lignes au plus ;
+- key_points : les points essentiels ;
+- obligations : ce qu'il impose (à qui, quoi), avec le délai (date AAAA-MM-JJ ou durée) et la clause citée ;
+- risks : risques contractuels (délais, coûts, responsabilité, forclusion) avec leur niveau ;
+- suggested_actions : actions concrètes à mener (répondre, émettre des réserves, notifier un Early Warning, réclamer…).
+N'invente rien : uniquement ce que dit le document.
+
+<document>
+${text.slice(0, LIMITS[provider.name])}
+</document>`,
+  });
+  return { ...result, provider: provider.name };
+}
+
+/** Fiche d'identification d'un contrat à partir de son texte (création d'un contrat). */
+export async function extractContractFields(db, text) {
+  const provider = resolveProvider(db, null);
+  const result = await completeJson(provider, {
+    system: SYSTEM,
+    schema: CONTRACT_SCHEMA,
+    prompt: `Lis ce contrat et remplis sa fiche d'identification. Règles :
+- n'invente rien : chaîne vide ou 0 si l'information n'est pas dans le texte ;
+- dates au format AAAA-MM-JJ ; montants hors taxes, en nombre, sans séparateur ;
+- framework : NEC4, NEC3, FIDIC_<RED|YELLOW|SILVER>_<1999|2017>, FR_PUBLIC (marché public français : CCAP, CCAG, Code de la commande publique), FR_PRIVE ou COMMERCIAL ;
+- agreement_type : bons_commande, marches_subsequents, mixte ou contrat_cadre s'il s'agit d'un accord-cadre ou contrat-cadre ;
+- evidence : pour chaque champ rempli, l'extrait exact du texte qui le justifie (une phrase).
+
+<contrat>
+${text.slice(0, LIMITS[provider.name])}
+</contrat>`,
+  });
+  return { ...result, provider: provider.name };
+}
+
+/** Analyse d'un échange reçu : résumé, réponse attendue, risque contractuel, thème et criticité. */
 export async function triageCorrespondence(db, contract, message, attachmentsText) {
   const provider = resolveProvider(db, contract);
   return {
@@ -381,7 +442,7 @@ export async function triageCorrespondence(db, contract, message, attachmentsTex
       system: SYSTEM,
       schema: TRIAGE_SCHEMA,
       prompt: `${contractHeader(contract)}
-Analyse ce courrier ${message.direction === 'sortant' ? 'envoyé' : 'reçu'} et indique : un résumé (3 lignes), si une réponse est attendue et sous combien de jours, les actions à mener, et s'il révèle un risque contractuel (événement à notifier en Early Warning, Compensation Event, réclamation, mise en demeure).
+Analyse ce courrier ${message.direction === 'sortant' ? 'envoyé' : 'reçu'} et indique : un résumé (3 lignes), si une réponse est attendue et sous combien de jours, les actions à mener, et s'il révèle un risque contractuel (événement à notifier en Early Warning, Compensation Event, réclamation, mise en demeure). Classe-le enfin par thème et par criticité (critique : mise en demeure, résiliation, forclusion, pénalités imminentes ; haute : réclamation, réserve, retard, délai court ; faible : simple information).
 
 Objet : ${message.subject}
 De : ${message.sender ?? ''} – À : ${message.recipient ?? ''} – Date : ${message.date ?? ''}

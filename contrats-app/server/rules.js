@@ -2,6 +2,8 @@
 import { addDays, ceDerived, today } from './deadlines.js';
 import { getSettings } from './db.js';
 import { legalPaymentDays, publicDeadlines, publicInsights, publicReviewTemplate } from './legal.js';
+import { revisionInsights } from './revision.js';
+import { agreementDeadlines, agreementInsights, fidicClaimDates, fidicDeadlines, fidicInsights, fidicPaymentDays, fidicReviewTemplate, isFidic } from './fidic.js';
 
 const NEC = new Set(['NEC3', 'NEC4']);
 const FR = new Set(['FR_PUBLIC', 'FR_PRIVE']);
@@ -10,7 +12,7 @@ const CE_OPEN = (ce) => !['implémenté', 'rejeté', 'retiré'].includes(ce.stat
 
 // Échéance : saisie, sinon délai du contrat, sinon délai légal (marchés publics) ou usuel (21 j en NEC).
 export const paymentDue = (p, c) =>
-  p.due_date || addDays(p.submitted_date, c.payment_days ?? (NEC.has(c.framework) ? 21 : c.framework === 'FR_PUBLIC' ? legalPaymentDays(c) : 30));
+  p.due_date || addDays(p.submitted_date, isFidic(c) ? fidicPaymentDays(c) : c.payment_days ?? (NEC.has(c.framework) ? 21 : c.framework === 'FR_PUBLIC' ? legalPaymentDays(c) : 30));
 export const visaDue = (s, c) => s.visa_due || addDays(s.submitted_date, c.visa_days ?? 15);
 export const programmeReplyDue = (p, c) => (p.submitted_date && !p.pm_response_date ? addDays(p.submitted_date, (c.pm_programme_reply_weeks ?? 2) * 7) : null);
 
@@ -25,6 +27,10 @@ export function derive(table, row, contract) {
     return { ...row, computed_visa_due: due, overdue: Boolean(due && row.visa_status === 'en attente' && due < today()) };
   }
   if (table === 'programmes') return { ...row, pm_reply_due: programmeReplyDue(row, contract) };
+  if (table === 'claims' && isFidic(contract)) {
+    const d = fidicClaimDates(row, contract);
+    return { ...row, computed_notice_due: d.notice_due, computed_memo_due: d.memo_due, computed_response_due: d.response_due };
+  }
   if (table === 'compensation_events') return { ...row, ...ceDerived(row, contract) };
   return row;
 }
@@ -59,7 +65,7 @@ export function extraDeadlines(db, contracts) {
       push(c, { ...base('payments', p.id), kind: 'paiement', date: paymentDue(p, c), title: `Paiement attendu : ${p.number ?? 'situation'}${p.period ? ` (${p.period})` : ''}`, critical: true });
     }
   }
-  return [...items, ...publicDeadlines(db, contracts)];
+  return [...items, ...publicDeadlines(db, contracts), ...fidicDeadlines(db, contracts), ...agreementDeadlines(db, contracts)];
 }
 
 const sum = (rows, f) => rows.reduce((n, r) => n + (Number(f(r)) || 0), 0);
@@ -103,6 +109,7 @@ const REQUIRED_DOCS = {
   FR_PUBLIC: [['CCAP', 'Contract Data / CCAP'], ['CCTP'], ['CCAG Travaux', 'CCAG']],
   FR_PRIVE: [['CCAP', 'Contract Data / CCAP'], ['CCTP']],
   COMMERCIAL: [],
+  FIDIC: [['Particular Conditions', 'Contract Data', 'Contract Data / CCAP'], ['Specification / Employer’s Requirements', 'Scope / Works Information', 'CCTP']],
 };
 
 /**
@@ -124,7 +131,7 @@ export function computeInsights(db, { contractId } = {}) {
 
     // Pièces de référence
     const categories = new Set(all('SELECT DISTINCT category FROM documents WHERE contract_id = ?').map((r) => r.category));
-    const required = [...REQUIRED_DOCS.ALL, ...(REQUIRED_DOCS[c.framework] ?? []), ...(c.group_type ? [['Convention de groupement']] : [])];
+    const required = [...REQUIRED_DOCS.ALL, ...(REQUIRED_DOCS[isFidic(c) ? 'FIDIC' : c.framework] ?? []), ...(c.group_type ? [['Convention de groupement']] : [])];
     const missing = required.filter((alts) => !alts.some((a) => categories.has(a))).map((alts) => alts[0]);
     if (missing.length) add('attention', `Pièces de référence manquantes : ${missing.join(', ')}`, 'Archivez-les pour fiabiliser la revue de contrat et l’assistant IA.', 'documents');
     const unreadable = db.prepare("SELECT COUNT(*) AS n FROM documents WHERE contract_id = ? AND is_current = 1 AND text_status IN ('vide', 'ocr vide', 'ocr échoué')").get(c.id).n;
@@ -213,6 +220,9 @@ export function computeInsights(db, { contractId } = {}) {
     if (c.reception_date && FR.has(c.framework) && addDays(c.reception_date, 365) <= now && f.retention > 0) add('info', 'Garantie de parfait achèvement échue', 'Demandez la libération de la retenue de garantie (ou de la caution qui la remplace).', 'finances');
 
     publicInsights(db, c, { add, finance: f, latestImport: imports[0], settings });
+    fidicInsights(db, c, { add });
+    agreementInsights(db, c, { add });
+    revisionInsights(db, c, { add });
 
     if (!c.completion_date && !c.end_date) add('info', 'Aucune date d’achèvement ou de fin renseignée', 'Les alertes de délai et de préavis ne peuvent pas être calculées.', 'synthese');
   }
@@ -265,6 +275,7 @@ export const REVIEW_TEMPLATES = {
 
 export function reviewTemplateFor(contract) {
   if (contract.framework === 'FR_PUBLIC') return publicReviewTemplate(contract);
+  if (isFidic(contract)) return [...REVIEW_TEMPLATES.COMMON, ...fidicReviewTemplate(contract)];
   const key = NEC.has(contract.framework) ? 'NEC' : contract.framework;
   return [...REVIEW_TEMPLATES.COMMON, ...(REVIEW_TEMPLATES[key] ?? [])];
 }

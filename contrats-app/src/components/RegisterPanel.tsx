@@ -39,6 +39,8 @@ export function RegisterPanel({
   hideAdd,
   topContent,
   importDocs,
+  rowFilter,
+  renderTop,
 }: {
   table: string;
   contractId: number;
@@ -62,6 +64,10 @@ export function RegisterPanel({
   topContent?: ReactNode;
   /** Glisser-déposer de documents (factures, courriers…) qui crée chacun une ligne du registre. */
   importDocs?: string;
+  /** Filtre appliqué aux lignes (en plus de la recherche texte). */
+  rowFilter?: (row: Rec) => boolean;
+  /** Contenu au-dessus du tableau calculé à partir de toutes les lignes (compteurs, filtres…). */
+  renderTop?: (rows: Rec[]) => ReactNode;
 }) {
   const [rows, setRows] = useState<Rec[]>([]);
   const [editing, setEditing] = useState<Rec | null>(null);
@@ -133,7 +139,7 @@ export function RegisterPanel({
   };
 
   const q = filter.toLowerCase();
-  const shown = q ? rows.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(q))) : rows;
+  const shown = (q ? rows.filter((r) => Object.values(r).some((v) => String(v ?? '').toLowerCase().includes(q))) : rows).filter((r) => !rowFilter || rowFilter(r));
 
   return (
     <div className="space-y-3">
@@ -154,6 +160,7 @@ export function RegisterPanel({
       {toolbar}
       {importDocs && <FileDrop compact onFiles={importFiles} label={importing ? t('Lecture des documents…') : t(importDocs)} />}
       {topContent}
+      {renderTop?.(rows)}
       {shown.length === 0 ? (
         <Empty>{t(emptyText)}</Empty>
       ) : (

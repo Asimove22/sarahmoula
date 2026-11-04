@@ -23,20 +23,50 @@ export const FRAMEWORKS: { value: string; label: string }[] = [
   { value: 'FR_PUBLIC', label: 'Marché public (FR)' },
   { value: 'FR_PRIVE', label: 'Marché privé (FR)' },
   { value: 'COMMERCIAL', label: 'Contrat commercial' },
+  { value: 'FIDIC_RED_2017', label: 'FIDIC Red Book 2017 (Construction)' },
+  { value: 'FIDIC_YELLOW_2017', label: 'FIDIC Yellow Book 2017 (Plant & Design-Build)' },
+  { value: 'FIDIC_SILVER_2017', label: 'FIDIC Silver Book 2017 (EPC / Turnkey)' },
+  { value: 'FIDIC_RED_1999', label: 'FIDIC Red Book 1999 (Construction)' },
+  { value: 'FIDIC_YELLOW_1999', label: 'FIDIC Yellow Book 1999 (Plant & Design-Build)' },
+  { value: 'FIDIC_SILVER_1999', label: 'FIDIC Silver Book 1999 (EPC / Turnkey)' },
 ];
 export const isNec = (c?: Rec | null) => c?.framework === 'NEC3' || c?.framework === 'NEC4';
+export const isFidic = (c?: Rec | null) => String(c?.framework ?? '').startsWith('FIDIC');
+export const AGREEMENT_TYPES = [
+  { value: 'bons_commande', label: 'Accord-cadre à bons de commande' },
+  { value: 'marches_subsequents', label: 'Accord-cadre à marchés subséquents' },
+  { value: 'mixte', label: 'Accord-cadre mixte' },
+  { value: 'contrat_cadre', label: 'Contrat-cadre (droit privé)' },
+];
 export const frameworkLabel = (v?: string) => FRAMEWORKS.find((f) => f.value === v)?.label ?? v ?? '—';
 
 export const CONTRACT_STATUSES = ['brouillon', 'actif', 'suspendu', 'clôturé', 'résilié', 'archivé'];
 export const EW_STATUSES = ['ouvert', 'clos', 'converti en CE'];
 export const CE_STATUSES = ['notifié', 'devis demandé', 'devis soumis', 'implémenté', 'rejeté', 'retiré'];
 export const CORR_STATUSES = ['à traiter', 'en cours', 'répondu', 'à envoyer', 'envoyé', 'classé'];
+export const CORR_THEMES = [
+  'Réclamation / différend',
+  'Mise en demeure / pénalités',
+  'Délais / planning',
+  'Paiement / facturation',
+  'Ordre de service / instruction',
+  'Modification / avenant',
+  'Notification contractuelle',
+  'Technique / visa',
+  'Qualité / réserves',
+  'Sécurité / environnement',
+  'Réunion / compte rendu',
+  'Administratif',
+];
+export const CRITICALITIES = ['critique', 'haute', 'moyenne', 'faible'];
 export const MILESTONE_STATUSES = ['à venir', 'en cours', 'atteint', 'en retard', 'annulé'];
 
 export const DOCUMENT_CATEGORIES = [
   'Contrat',
   'Acte d’engagement',
   'Contract Data',
+  'Particular Conditions',
+  'Specification / Employer’s Requirements',
   'CCAP',
   'CCTP',
   'Scope / Works Information',
@@ -67,6 +97,8 @@ export const DOCUMENT_CATEGORIES = [
 
 const nec = (v: Rec) => isNecValue(v.framework);
 const pub = (v: Rec) => v.framework === 'FR_PUBLIC';
+const fidic = (v: Rec) => isFidic(v);
+const agreement = (v: Rec) => Boolean(v.agreement_type);
 
 export const CCAG_OPTIONS = [
   { value: 'TRAVAUX_2021', label: 'CCAG Travaux 2021' },
@@ -102,7 +134,7 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'reception_date', label: 'Date de réception des travaux', type: 'date', help: 'Déclenche les alertes de fin de garanties (parfait achèvement, biennale).' },
   { name: 'notice_period_days', label: 'Préavis de résiliation (jours)', type: 'number', help: 'Génère une alerte « date limite de préavis » avant la fin.' },
   { name: 'tacit_renewal', label: 'Reconduction tacite', type: 'checkbox' },
-  { name: 'payment_days', label: 'Délai de paiement (jours)', type: 'number', section: 'Conditions financières', help: 'Par défaut : 30 j (21 j en NEC).' },
+  { name: 'payment_days', label: 'Délai de paiement (jours)', type: 'number', section: 'Conditions financières', help: 'Par défaut : 30 j (21 j en NEC, 56 j en FIDIC).' },
   { name: 'retention_percent', label: 'Retenue de garantie (%)', type: 'number' },
   { name: 'advance_amount', label: 'Avance (montant)', type: 'number' },
   { name: 'price_revision', label: 'Révision / actualisation des prix', placeholder: 'ex. index BT01, mois zéro…' },
@@ -116,6 +148,12 @@ export const CONTRACT_FIELDS: Field[] = [
   { name: 'dgd_notified_date', label: 'Décompte général notifié le', type: 'date', showIf: pub, help: '30 jours pour le retourner signé, avec ou sans réserves.' },
   { name: 'dgd_signed_date', label: 'Décompte général retourné le', type: 'date', showIf: pub },
   { name: 'dgd_reserves', label: 'Retourné avec réserves', type: 'checkbox', showIf: pub },
+  { name: 'agreement_type', label: 'Accord-cadre / contrat-cadre', type: 'select', options: AGREEMENT_TYPES, section: 'Accord-cadre', help: 'Vide pour un marché ou contrat ordinaire. Active le registre des bons de commande / marchés subséquents.' },
+  { name: 'min_amount', label: 'Montant minimum (HT)', type: 'number', showIf: agreement },
+  { name: 'max_amount', label: 'Montant maximum (HT)', type: 'number', showIf: agreement, help: 'Clausia alerte à 80 % et 100 % de consommation.' },
+  { name: 'fidic_notice_days', label: 'Notice of Claim (jours) – cl. 20.2.1', type: 'number', showIf: fidic, section: 'Délais FIDIC (Particular Conditions)', help: 'Vide : 28 jours.' },
+  { name: 'fidic_detailed_days', label: 'Fully detailed Claim (jours) – cl. 20.2.4', type: 'number', showIf: fidic, help: 'Vide : 84 jours (2017) ou 42 jours (1999).' },
+  { name: 'fidic_response_days', label: 'Réponse de l’Engineer (jours) – cl. 20.2.5', type: 'number', showIf: fidic, help: 'Vide : 42 jours.' },
   { name: 'group_type', label: 'Groupement', type: 'select', options: [{ value: 'conjoint', label: 'Groupement conjoint' }, { value: 'solidaire', label: 'Groupement solidaire' }] },
   { name: 'project_manager', label: "Project Manager / Maître d'œuvre", section: 'Intervenants' },
   { name: 'supervisor', label: 'Supervisor / Contrôleur' },
@@ -197,6 +235,8 @@ export const CORRESPONDENCE_FIELDS: Field[] = [
   { name: 'response_date', label: 'Répondu le', type: 'date', showIf: (v) => Boolean(v.response_required) },
   { name: 'early_warning_id', label: 'Early Warning lié', type: 'ref', ref: 'early_warnings' },
   { name: 'compensation_event_id', label: 'Compensation Event lié', type: 'ref', ref: 'compensation_events' },
+  { name: 'theme', label: 'Thème', type: 'select', options: CORR_THEMES, help: 'Classé automatiquement ; votre choix manuel est conservé.' },
+  { name: 'criticality', label: 'Criticité', type: 'select', options: CRITICALITIES },
   { name: 'summary', label: 'Résumé / contenu', type: 'textarea', wide: true },
 ];
 
@@ -213,6 +253,36 @@ export const SERVICE_ORDER_FIELDS: Field[] = [
   { name: 'reserves_due', label: 'Réserves avant le', type: 'date', help: 'Laisser vide : réception + 15 jours.' },
   { name: 'reserves_date', label: 'Réserves émises le', type: 'date' },
   { name: 'reserves_text', label: 'Motifs des réserves', type: 'textarea', wide: true },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const FIDIC_CLAIM_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (REC-001…)' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['différend', 'mémoire transmis', 'accepté', 'partiellement accepté', 'rejeté', 'médiation / CCRA', 'contentieux', 'clos', 'abandonné'] },
+  { name: 'title', label: 'Événement / objet du claim', required: true, wide: true },
+  { name: 'dispute_date', label: 'Connaissance de l’événement le', type: 'date', help: 'Point de départ des 28 jours de la Notice of Claim (forclusion).' },
+  { name: 'notice_date', label: 'Notice of Claim envoyée le', type: 'date' },
+  { name: 'memo_due', label: 'Fully detailed Claim avant le', type: 'date', help: 'Laisser vide : calculé (84 j en 2017, 42 j en 1999).' },
+  { name: 'memo_sent_date', label: 'Fully detailed Claim envoyé le', type: 'date' },
+  { name: 'amount_claimed', label: 'Montant réclamé', type: 'number' },
+  { name: 'extra_days_claimed', label: 'Extension of Time demandée (jours)', type: 'number' },
+  { name: 'response_due', label: 'Réponse de l’Engineer avant le', type: 'date', help: 'Laisser vide : envoi + 42 jours.' },
+  { name: 'response_date', label: 'Réponse / Determination reçue le', type: 'date' },
+  { name: 'decision', label: 'Determination de l’Engineer', type: 'textarea', wide: true },
+  { name: 'amount_obtained', label: 'Montant obtenu', type: 'number' },
+  { name: 'next_step', label: 'Suite envisagée', type: 'select', options: ['Négociation', 'Notice of Dissatisfaction', 'DAAB', 'Règlement amiable', 'Arbitrage', 'Abandon'] },
+  { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
+];
+
+export const ORDER_FIELDS: Field[] = [
+  { name: 'number', label: 'N°', placeholder: 'auto (BC-001 / MS-001)' },
+  { name: 'kind', label: 'Nature', type: 'select', options: ['bon de commande', 'marché subséquent', 'commande (contrat-cadre)'] },
+  { name: 'title', label: 'Objet', required: true, wide: true },
+  { name: 'issued_date', label: 'Émis le', type: 'date' },
+  { name: 'due_date', label: 'Fin d’exécution prévue', type: 'date' },
+  { name: 'amount', label: 'Montant (HT)', type: 'number' },
+  { name: 'status', label: 'Statut', type: 'select', options: ['émis', 'en cours', 'réceptionné', 'facturé', 'soldé', 'annulé'] },
+  { name: 'completed_date', label: 'Exécuté / réceptionné le', type: 'date' },
   { name: 'notes', label: 'Notes', type: 'textarea', wide: true },
 ];
 
@@ -414,6 +484,8 @@ export const STATUS_COLORS: Record<string, string> = {
   analysé: 'bg-sky-100 text-sky-800',
   'à négocier': 'bg-red-100 text-red-800',
   faible: 'bg-slate-100 text-slate-700',
+  haute: 'bg-orange-100 text-orange-800',
+  moyenne: 'bg-amber-50 text-amber-800',
   moyen: 'bg-amber-100 text-amber-800',
   élevé: 'bg-orange-100 text-orange-800',
   critique: 'bg-red-100 text-red-800',
@@ -429,6 +501,10 @@ export const STATUS_COLORS: Record<string, string> = {
   'mémoire transmis': 'bg-sky-100 text-sky-800',
   'partiellement accepté': 'bg-lime-100 text-lime-800',
   'médiation / CCRA': 'bg-violet-100 text-violet-800',
+  émis: 'bg-sky-100 text-sky-800',
+  réceptionné: 'bg-lime-100 text-lime-800',
+  facturé: 'bg-brand-100 text-brand-800',
+  soldé: 'bg-emerald-100 text-emerald-800',
   contentieux: 'bg-red-100 text-red-800',
   abandonné: 'bg-slate-200 text-slate-600',
   'en cours d’agrément': 'bg-amber-100 text-amber-800',
@@ -459,6 +535,7 @@ export const TAB_FOR_ENTITY: Record<string, string> = {
   service_orders: 'marche',
   claims: 'marche',
   subcontractors: 'marche',
+  orders: 'finances',
 };
 
 export const ENTITY_LABELS: Record<string, string> = {
@@ -483,4 +560,5 @@ export const ENTITY_LABELS: Record<string, string> = {
   service_orders: 'Ordre de service',
   claims: 'Réclamation',
   subcontractors: 'Sous-traitant',
+  orders: 'Bon de commande',
 };

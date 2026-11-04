@@ -279,6 +279,39 @@ const MIGRATIONS = [
   ALTER TABLE documents ADD COLUMN amendment_id INTEGER REFERENCES amendments(id) ON DELETE SET NULL;
   ALTER TABLE documents ADD COLUMN subcontractor_id INTEGER REFERENCES subcontractors(id) ON DELETE SET NULL;
   `,
+  // V6 (Clausia 5) : FIDIC, accords-cadres, classement de la correspondance, révision des prix.
+  `
+  ALTER TABLE contracts ADD COLUMN agreement_type TEXT;
+  ALTER TABLE contracts ADD COLUMN min_amount REAL;
+  ALTER TABLE contracts ADD COLUMN max_amount REAL;
+  ALTER TABLE contracts ADD COLUMN fidic_notice_days INTEGER;
+  ALTER TABLE contracts ADD COLUMN fidic_detailed_days INTEGER;
+  ALTER TABLE contracts ADD COLUMN fidic_response_days INTEGER;
+  ALTER TABLE contracts ADD COLUMN rev_enabled INTEGER DEFAULT 0;
+  ALTER TABLE contracts ADD COLUMN rev_fixed REAL;
+  ALTER TABLE contracts ADD COLUMN rev_terms TEXT;
+  ALTER TABLE contracts ADD COLUMN rev_base_month TEXT;
+  ALTER TABLE contracts ADD COLUMN rev_lag_months INTEGER DEFAULT 0;
+  ALTER TABLE contracts ADD COLUMN rev_decimals INTEGER DEFAULT 4;
+  ALTER TABLE contracts ADD COLUMN rev_rounding TEXT DEFAULT 'arrondi';
+  ALTER TABLE claims ADD COLUMN notice_date TEXT;
+  ALTER TABLE correspondence ADD COLUMN theme TEXT;
+  ALTER TABLE correspondence ADD COLUMN criticality TEXT;
+  ALTER TABLE correspondence ADD COLUMN classification TEXT;
+  CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, ${OWNED}, number TEXT, title TEXT NOT NULL,
+    kind TEXT DEFAULT 'bon de commande', issued_date TEXT, due_date TEXT, amount REAL, status TEXT NOT NULL DEFAULT 'émis',
+    completed_date TEXT, notes TEXT, ${TIMESTAMPS});
+  CREATE INDEX idx_orders_contract ON orders(contract_id);
+  ALTER TABLE documents ADD COLUMN order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL;
+  CREATE TABLE price_indices (code TEXT PRIMARY KEY, label TEXT, idbank TEXT, auto INTEGER DEFAULT 1, notes TEXT,
+    last_check TEXT, last_error TEXT);
+  CREATE TABLE index_values (code TEXT NOT NULL REFERENCES price_indices(code) ON DELETE CASCADE, month TEXT NOT NULL,
+    value REAL NOT NULL, status TEXT DEFAULT 'définitif', source TEXT DEFAULT 'manuel',
+    fetched_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (code, month));
+  INSERT INTO price_indices (code, label, idbank, notes) VALUES
+    ('BT01', 'Index BT01 – Tous corps d’état (base 2010)', '001710986', NULL),
+    ('TP01', 'Index TP01 – Index général tous travaux (base 2010)', '001711007', 'Identifiant INSEE à vérifier sur insee.fr');
+  `,
 ];
 
 /** Colonne de la table documents qui rattache un fichier à une ligne de registre. */
@@ -292,6 +325,7 @@ export const DOC_LINKS = {
   service_orders: 'service_order_id',
   amendments: 'amendment_id',
   subcontractors: 'subcontractor_id',
+  orders: 'order_id',
 };
 
 export function openDatabase(dataDir) {
