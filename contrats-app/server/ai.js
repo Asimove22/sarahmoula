@@ -1,4 +1,6 @@
 // Assistant IA : Ollama (local, par défaut) ou API Claude (activable contrat par contrat).
+import http from 'node:http';
+import https from 'node:https';
 import Anthropic from '@anthropic-ai/sdk';
 import { getSettings } from './db.js';
 import { CONTRACT_SCHEMA } from './contract-analyze.js';
@@ -144,7 +146,69 @@ export async function aiStatus(db) {
   };
 }
 
-async function complete(provider, { system, prompt, schema }) {
+/**
+ * Appel d'Ollama en flux (NDJSON) par node:http : contrairement à fetch, pas de coupure au bout de 5 minutes
+ * quand le modèle met longtemps à lire un long document sur un PC sans carte graphique.
+ */
+function ollamaChat(base, payload, { timeoutMs = 30 * 60_000, onToken } = {}) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${base}/api/chat`);
+    const lib = url.protocol === 'https:' ? https : http;
+    const body = JSON.stringify({ ...payload, stream: true });
+    const req = lib.request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (res) => {
+      let buf = '';
+      let content = '';
+      let tokens = 0;
+      let failed = null;
+      const handle = (line) => {
+        let ev;
+        try {
+          ev = JSON.parse(line);
+        } catch {
+          return false;
+        }
+        if (ev.error) failed = ev.error;
+        if (ev.message?.content) {
+          content += ev.message.content;
+          tokens += 1;
+          onToken?.(tokens);
+        }
+        return true;
+      };
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        buf += chunk;
+        let i;
+        while ((i = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (line) handle(line);
+        }
+      });
+      res.on('end', () => {
+        // Dernière ligne sans saut de ligne (ou réponse non découpée).
+        if (buf.trim() && res.statusCode < 400 && handle(buf.trim())) buf = '';
+        if (failed) return reject(Object.assign(new Error(failed), { status: res.statusCode >= 400 ? res.statusCode : 500 }));
+        if (res.statusCode >= 400) {
+          let detail = buf;
+          try {
+            detail = JSON.parse(buf).error ?? buf;
+          } catch {
+            // texte brut
+          }
+          return reject(Object.assign(new Error(detail || `HTTP ${res.statusCode}`), { status: res.statusCode }));
+        }
+        resolve(content);
+      });
+      res.on('error', reject);
+    });
+    req.setTimeout(timeoutMs, () => req.destroy(Object.assign(new Error('délai dépassé'), { code: 'TIMEOUT' })));
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+async function complete(provider, { system, prompt, schema, onToken }) {
   const { name, settings: s } = provider;
   if (name === 'ollama') {
     const installed = await ollamaModels(s, 5000);
@@ -157,33 +221,23 @@ async function complete(provider, { system, prompt, schema }) {
         503,
       );
     }
-    let res;
     try {
-      res = await fetch(`${ollamaBase(s)}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: picked.name,
-          stream: false,
-          format: schema ?? undefined,
-          options: { num_ctx: 16384, temperature: 0.2 },
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: prompt },
-          ],
-        }),
-        signal: AbortSignal.timeout(10 * 60_000),
-      });
-    } catch {
-      throw new AiError(`Ollama ne répond pas sur ${s.ollama_url}. Lancez Ollama (ollama serve) ou vérifiez l’adresse dans Paramètres.`, 503);
+      return await ollamaChat(ollamaBase(s), {
+        model: picked.name,
+        format: schema ?? undefined,
+        options: { num_ctx: 16384, temperature: 0.2 },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }, { onToken });
+    } catch (e) {
+      if (e.status === 404) throw new AiError(`Modèle « ${picked.name} » absent : Paramètres → IA locale → « Installer le modèle », ou « ollama pull ${picked.name} ».`, 503);
+      if (e.status) throw new AiError(`Erreur Ollama ${e.status} : ${String(e.message).slice(0, 300)}`, 502);
+      if (e.code === 'TIMEOUT') throw new AiError('L’IA locale n’a pas terminé en 30 minutes : document trop long pour ce PC. Utilisez la lecture par règles, un modèle plus léger ou Claude.', 504);
+      if (e.code === 'ECONNREFUSED') throw new AiError(`Ollama ne répond pas sur ${s.ollama_url}. Lancez Ollama (icône Ollama ou « ollama serve ») ou vérifiez l’adresse dans Paramètres.`, 503);
+      throw new AiError(`Échange avec Ollama interrompu (${e.code ?? e.message}). Vérifiez qu’Ollama tourne toujours, puis réessayez.`, 503);
     }
-    if (!res.ok) {
-      const detail = await res.text();
-      if (res.status === 404) throw new AiError(`Modèle « ${picked.name} » absent : Paramètres → IA locale → « Installer le modèle », ou « ollama pull ${picked.name} ».`, 503);
-      throw new AiError(`Erreur Ollama ${res.status} : ${detail.slice(0, 300)}`, 502);
-    }
-    const data = await res.json();
-    return data.message?.content ?? '';
   }
 
   const client = new Anthropic({ apiKey: s.claude_api_key });
@@ -416,11 +470,14 @@ ${text.slice(0, LIMITS[provider.name])}
 }
 
 /** Fiche d'identification d'un contrat à partir de son texte (création d'un contrat). */
-export async function extractContractFields(db, text) {
+export async function extractContractFields(db, text, { onToken } = {}) {
   const provider = resolveProvider(db, null);
+  // Modèle local : l'identification du contrat est en tête de document ; un texte plus court se lit bien plus vite.
+  const limit = provider.name === 'ollama' ? 20_000 : LIMITS.claude;
   const result = await completeJson(provider, {
     system: SYSTEM,
     schema: CONTRACT_SCHEMA,
+    onToken,
     prompt: `Lis ce contrat et remplis sa fiche d'identification. Règles :
 - n'invente rien : chaîne vide ou 0 si l'information n'est pas dans le texte ;
 - dates au format AAAA-MM-JJ ; montants hors taxes, en nombre, sans séparateur ;
@@ -429,7 +486,7 @@ export async function extractContractFields(db, text) {
 - evidence : pour chaque champ rempli, l'extrait exact du texte qui le justifie (une phrase).
 
 <contrat>
-${text.slice(0, LIMITS[provider.name])}
+${text.slice(0, limit)}
 </contrat>`,
   });
   return { ...result, provider: provider.name };

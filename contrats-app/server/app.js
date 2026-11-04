@@ -869,9 +869,9 @@ export function createApp({ db, dataDir, onShutdown }) {
     job.partial = { ...base, values: rulesValues, method: 'règles' };
     if (!useAi || effectiveMode(db, null) === 'off') return job.partial;
     const mode = effectiveMode(db, null);
-    Object.assign(job, { stage: 'ia', progress: 70, ai_started: Date.now(), ai_expected: mode === 'claude' ? 45 : 150, message: mode === 'claude' ? 'Analyse par l’IA (Claude)' : 'Analyse par l’IA locale (Ollama) : peut prendre quelques minutes' });
+    Object.assign(job, { stage: 'ia', progress: 70, ai_started: Date.now(), ai_expected: mode === 'claude' ? 45 : 240, message: mode === 'claude' ? 'Analyse par l’IA (Claude)' : 'Analyse par l’IA locale (Ollama) : peut prendre quelques minutes' });
     try {
-      const ai = await extractContractFields(db, text);
+      const ai = await extractContractFields(db, text, { onToken: (n) => { job.tokens = n; } });
       const merged = mergeAi(rules, ai);
       const duration = finishDates(merged.values);
       return { ...base, values: merged.values, sources: merged.sources, from_ai: merged.fromAi, duration, method: `règles + IA (${ai.provider === 'claude' ? 'Claude' : 'locale'})` };
@@ -907,7 +907,9 @@ export function createApp({ db, dataDir, onShutdown }) {
     if (job.stage === 'ia') {
       const elapsed = Math.round((Date.now() - job.ai_started) / 1000);
       progress = Math.min(95, 70 + Math.round((25 * elapsed) / job.ai_expected));
-      message = `${job.message} – ${elapsed} s`;
+      const time = elapsed >= 60 ? `${Math.floor(elapsed / 60)} min ${String(elapsed % 60).padStart(2, '0')} s` : `${elapsed} s`;
+      // Avant le premier mot, le modèle lit le document (phase la plus longue sur un PC sans carte graphique).
+      message = job.tokens ? `${job.message} – ${time} – rédaction de la fiche (${job.tokens} éléments)` : `${job.message} – ${time} – lecture du document par l’IA`;
     }
     return { id: job.id, name: job.name, stage: job.stage, progress, message, partial: job.partial, result: job.result, error: job.error };
   }));
