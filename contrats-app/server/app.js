@@ -858,6 +858,11 @@ export function createApp({ db, dataDir, onShutdown }) {
     }
     step('règles', 65, 'Repérage des informations du contrat');
     const rules = analyzeContractText(text);
+    // Référence absente du texte : code du marché dans le nom du fichier (ex. « GDI260062 »).
+    if (!rules.values.reference) {
+      const code = file.originalname.match(/\b([A-Z]{2,}[A-Z0-9]*\d{3,}[A-Z0-9-]*)/)?.[1];
+      if (code) rules.values.reference = code;
+    }
     const rulesValues = { ...rules.values };
     const rulesDuration = finishDates(rulesValues);
     const base = { sources: rules.sources, from_ai: [], duration: rulesDuration, ocr: ocrUsed, chars: text.length };

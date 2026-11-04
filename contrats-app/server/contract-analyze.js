@@ -23,7 +23,7 @@ function detectFramework(t) {
   if (/\bFIDIC\b/i.test(t)) return /\bEPC\b|turnkey|cl[ée]s en main/i.test(t) ? 'FIDIC_SILVER_2017' : /design[- ]build|plant/i.test(t) ? 'FIDIC_YELLOW_2017' : 'FIDIC_RED_2017';
   if (/\bNEC\s?4\b|NEC4/i.test(t)) return 'NEC4';
   if (/\bNEC\s?3\b|NEC3/i.test(t)) return 'NEC3';
-  if (/code de la commande publique|\bCCAG\b|pouvoir adjudicateur|march[ée] public|acte d.engagement|\bCCAP\b/i.test(t)) return 'FR_PUBLIC';
+  if (/code de la commande publique|\bCCAG\b|pouvoir adjudicateur|march[ée] public|acte d.engagement|\bCCAP\b|r[èe]glement de la consultation|\bDCE\b|\bBPU\b|\bDPGF\b|\bDQE\b|soumissionnaire|attributaire|candidat|titulaire du march[ée]/i.test(t)) return 'FR_PUBLIC';
   if (/NF\s?P\s?03[- ]001|march[ée] priv[ée]/i.test(t)) return 'FR_PRIVE';
   return null;
 }
@@ -80,25 +80,29 @@ export function analyzeContractText(text = '') {
   else if (/march[ée]s? subs[ée]quents?/i.test(t)) set('agreement_type', 'marches_subsequents', null);
   else if (/contrat[- ]cadre/i.test(t)) set('agreement_type', 'contrat_cadre', null);
   for (const [field, re] of [['min_amount', /montant\s+minimum[^\d\n]{0,40}/i], ['max_amount', /montant\s+maximum[^\d\n]{0,40}/i]]) {
-    const g = grab(t, new RegExp(re.source + AMOUNT, 'i'));
+    const g = grab(t, new RegExp(re.source + AMOUNT + String.raw`(?=\s*(?:€|EUR\b|euros?\b|k€|HT\b|H\.T|hors taxes?))`, 'i'));
     if (g) set(field, parseAmount(g.value), g.excerpt);
   }
 
   const title = grab(t, /(?:objet\s+du\s+(?:march[ée]|contrat|accord[- ]cadre)|intitul[ée]\s+du\s+(?:march[ée]|contrat)|objet|the works|contract for)\s*:?\s*([^\n]{8,200})/i);
   if (title) set('title', clean(title.value), title.excerpt);
-  const ref = grab(t, /(?:march[ée]|contrat|accord[- ]cadre|contract)\s*(?:n[°ºo]|num[ée]ro|no\.?|number)\s*:?\s*([A-Z0-9][A-Z0-9/_.-]{2,40})/i);
+  const ref = grab(t, /(?:march[ée]|contrat|accord[- ]cadre|contract)\s*(?:n[°ºo]|num[ée]ro|no\.?|number)\s*:?\s*([A-Z0-9][A-Z0-9/_.-]{2,40})/i)
+    ?? grab(t, /(?:march[ée]|accord[- ]cadre|consultation|contrat)\s+(?:r[ée]f[ée]renc[ée]\s+)?([A-Z]{2,}[A-Z0-9_/-]*\d{3,}[A-Z0-9_/-]*)/i);
   if (ref) set('reference', ref.value, ref.excerpt);
   const party = grab(t, /(?:pouvoir adjudicateur|acheteur public|entit[ée] adjudicatrice|ma[îi]tre d.ouvrage|the employer|employer|client)\s*(?::|est)\s*([^\n]{3,120})/i);
   if (party) set('counterparty', clean(party.value), party.excerpt);
 
   const amount = grab(t, new RegExp(String.raw`(?:montant\s+(?:total\s+)?(?:du\s+(?:march[ée]|contrat|accord[- ]cadre)\s+)?(?:hors\s+taxes?|H\.?T\.?)|prix\s+global\s+(?:et\s+)?forfaitaire[^\n]{0,30}|accepted contract amount|contract price)[^\d\n]{0,40}${AMOUNT}`, 'i'));
   if (amount) set('amount', parseAmount(amount.value), amount.excerpt);
-  if (/\bUSD\b|US\$|dollars?/i.test(t)) set('currency', 'USD', null);
-  else if (/\bGBP\b|£|pounds? sterling/i.test(t)) set('currency', 'GBP', null);
-  else if (/\bDZD\b|dinars? alg[ée]riens?/i.test(t)) set('currency', 'DZD', null);
-  else if (/\bMAD\b|dirhams?/i.test(t)) set('currency', 'MAD', null);
-  else if (/\bCHF\b|francs? suisses?/i.test(t)) set('currency', 'CHF', null);
-  else if (/€|\bEUR\b|euros?/i.test(t)) set('currency', 'EUR', null);
+  const counts = Object.entries({
+    EUR: /€|\bEUR\b|euros?\b/gi,
+    USD: /\bUSD\b|US\$|dollars?\b/gi,
+    GBP: /\bGBP\b|£|pounds?\s+sterling/gi,
+    DZD: /\bDZD\b|dinars?\s+alg[ée]riens?/gi,
+    MAD: /\bMAD\b|dirhams?\b/gi,
+    CHF: /\bCHF\b|francs?\s+suisses?/gi,
+  }).map(([cur, re]) => [cur, (t.match(re) ?? []).length]).sort((a, b) => b[1] - a[1]);
+  if (counts[0][1] > 0) set('currency', counts[0][0], null);
 
   for (const [field, re] of [
     ['signature_date', String.raw`(?:sign[ée]\s+le|fait\s+[àa]\s+[^\n,]{2,30},?\s+le|date\s+de\s+signature|signed\s+on)\s*:?\s*${DATE}`],

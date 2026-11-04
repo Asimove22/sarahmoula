@@ -174,6 +174,13 @@ test('analyse d’un contrat déposé à la création', async () => {
   assert.deepEqual(JSON.parse(v.rev_terms), [{ index: 'BT01', weight: 0.85 }]);
   assert.equal(v.rev_base_month, '2025-10');
   assert.match(out.sources.amount, /1 234 567,89/);
+  // Document de consultation : « 320 h.j. » n'est pas un montant, l'euro domine un « £ » parasite.
+  const { analyzeContractText } = await import('./contract-analyze.js');
+  const c2 = analyzeContractText('Marché GDI260062 – Candidat : ACME\nTJM Moyen = 949€ ; 1 190€\nMontant maximum des évolutions 320 h.j. par an\nTotal 1425€ £');
+  assert.equal(c2.values.reference, 'GDI260062');
+  assert.equal(c2.values.framework, 'FR_PUBLIC');
+  assert.equal(c2.values.currency, 'EUR');
+  assert.equal(c2.values.max_amount, undefined);
   const { detectFormula } = await import('./contract-analyze.js');
   const f3 = detectFormula('Cn = 0,125 + 0,875 × TP01n / TP01o');
   assert.equal(f3.rev_fixed, 0.125);

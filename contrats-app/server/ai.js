@@ -40,7 +40,8 @@ export function resolveProvider(db, contract) {
   throw new AiError('L’assistant IA est désactivé (sélecteur IA en haut de l’écran).');
 }
 
-const ollamaBase = (s) => s.ollama_url.replace(/\/$/, '');
+// « localhost » peut désigner l'adresse IPv6 sous Windows alors qu'Ollama écoute en IPv4 : on vise 127.0.0.1.
+const ollamaBase = (s) => s.ollama_url.replace(/\/$/, '').replace(/\/\/localhost(?=[:/]|$)/i, '//127.0.0.1');
 
 /** Modèles installés dans Ollama (null si Ollama ne répond pas). */
 async function ollamaModels(s, timeout = 1500) {
@@ -158,7 +159,7 @@ async function complete(provider, { system, prompt, schema }) {
     }
     let res;
     try {
-      res = await fetch(`${s.ollama_url.replace(/\/$/, '')}/api/chat`, {
+      res = await fetch(`${ollamaBase(s)}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

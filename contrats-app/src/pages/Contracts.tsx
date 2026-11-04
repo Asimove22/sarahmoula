@@ -123,7 +123,8 @@ function NewContract({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   const apply = (out: Rec, f: File | null, notify = true) => {
     setAnalysis(out);
-    setInitial({ ...DEFAULTS, ...out.values, title: out.values.title ?? f?.name.replace(/\.[^.]+$/, '') });
+    // Cadre non reconnu : on ne garde pas « NEC4 » par défaut, l'utilisateur choisit.
+    setInitial({ ...DEFAULTS, framework: out.values.framework ?? '', ...out.values, title: out.values.title ?? cleanFileTitle(f?.name ?? '') });
     setFormKey((k) => k + 1);
     const n = Object.keys(out.values).length;
     if (notify) toast(n ? t('{n} champ(s) pré-rempli(s) : vérifiez-les avant de créer le contrat', { n }) : out.warning ?? t('Aucune information reconnue : remplissez la fiche'), n ? 'ok' : 'error');
@@ -275,4 +276,13 @@ function AnalysisProgress({ job, onSkipAi }: { job: Rec; onSkipAi?: () => void }
       </div>
     </div>
   );
+}
+
+/** Intitulé tiré du nom de fichier : sans « Microsoft Word - » ni extensions (« ….docx.pdf »). */
+function cleanFileTitle(name: string) {
+  return name
+    .replace(/^Microsoft (?:Word|Excel|PowerPoint)\s*-\s*/i, '')
+    .replace(/(?:\.?(?:docx?|pdf|xlsx?|pptx?|odt))+$/i, '')
+    .replace(/[_]+/g, ' ')
+    .trim();
 }
