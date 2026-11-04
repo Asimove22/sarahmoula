@@ -261,3 +261,35 @@ test('imports : WBS (Excel, Word), visas, analyse de document par l’assistant'
   assert.match(r3.ai_error, /désactivé/);
   await api('PUT', '/api/ai/mode', { mode: 'ollama' });
 });
+
+test('courriers FIDIC en anglais (2017 et 1999)', async () => {
+  const c = await api('POST', '/api/contracts', { title: 'Desalination plant', reference: 'DP-01', framework: 'FIDIC_YELLOW_2017', status: 'actif', currency: 'USD' });
+  const cl = await api('POST', '/api/claims', { contract_id: c.id, title: 'Unforeseeable physical conditions', dispute_date: '2026-10-10', amount_claimed: 250000, extra_days_claimed: 30 });
+  const n = await api('POST', '/api/letters/preview', { contract_id: c.id, template: 'fidic_notice_of_claim', entity_id: cl.id });
+  assert.equal(n.lang, 'en');
+  assert.deepEqual(n.languages, ['fr', 'en']);
+  assert.equal(n.subject, 'Notice of Claim REC-001 – Unforeseeable physical conditions');
+  assert.match(n.body, /Sub-Clause 20\.2\.1 of the Conditions of Contract/);
+  assert.match(n.body, /10 October 2026/);
+  assert.match(n.body, /expiring on 7 November 2026/);
+  assert.match(n.body, /\$250,000\.00/);
+  const fr = await api('POST', '/api/letters/preview', { contract_id: c.id, template: 'fidic_notice_of_claim', entity_id: cl.id, lang: 'fr' });
+  assert.match(fr.body, /clause 20\.2\.1/);
+  await api('PUT', `/api/claims/${cl.id}`, { response_date: '2026-12-01', decision: 'Claim rejected' });
+  const nod = await api('POST', '/api/letters/preview', { contract_id: c.id, template: 'fidic_nod', entity_id: cl.id });
+  assert.match(nod.body, /Sub-Clause 3\.7\.5/);
+  assert.match(nod.body, /Determination disputed: Claim rejected/);
+  const gen = await api('POST', '/api/letters/generate', { contract_id: c.id, template: 'fidic_nod', entity_id: cl.id, ...nod });
+  assert.ok(gen.document.id);
+  const templates = await api('GET', `/api/letters/templates?contract_id=${c.id}`);
+  assert.ok(templates.some((t) => t.id === 'fidic_advance_warning'));
+
+  const old = await api('POST', '/api/contracts', { title: 'Road', framework: 'FIDIC_RED_1999', status: 'actif' });
+  const cl2 = await api('POST', '/api/claims', { contract_id: old.id, title: 'Late possession', dispute_date: '2026-10-01', notice_date: '2026-10-20' });
+  const d = await api('POST', '/api/letters/preview', { contract_id: old.id, template: 'fidic_detailed_claim', entity_id: cl2.id });
+  assert.match(d.body, /Sub-Clause 20\.1 of the Contract/);
+  assert.match(d.body, /Sub-Clause 3\.5 to agree or determine/);
+  assert.ok(!(await api('GET', `/api/letters/templates?contract_id=${old.id}`)).some((t) => t.id === 'fidic_nod'), 'NOD : édition 2017 seulement');
+  const ins = await api('GET', `/api/insights?contract_id=${c.id}`);
+  assert.ok(ins.some((i) => i.letter === 'fidic_notice_of_claim'));
+});

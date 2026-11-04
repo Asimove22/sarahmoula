@@ -41,6 +41,7 @@ export function RegisterPanel({
   importDocs,
   rowFilter,
   renderTop,
+  letters: lettersOverride,
 }: {
   table: string;
   contractId: number;
@@ -68,12 +69,14 @@ export function RegisterPanel({
   rowFilter?: (row: Rec) => boolean;
   /** Contenu au-dessus du tableau calculé à partir de toutes les lignes (compteurs, filtres…). */
   renderTop?: (rows: Rec[]) => ReactNode;
+  /** Courriers proposés dans la fenêtre d'un élément (sinon ceux du registre). */
+  letters?: { id: string; label: string }[];
 }) {
   const [rows, setRows] = useState<Rec[]>([]);
   const [editing, setEditing] = useState<Rec | null>(null);
   const [filter, setFilter] = useState('');
   const [letter, setLetter] = useState<{ template: string; entityId: number } | null>(null);
-  const letters = LETTERS_BY_ENTITY[table] ?? [];
+  const letters = lettersOverride ?? LETTERS_BY_ENTITY[table] ?? [];
 
   const load = useCallback(() => {
     api.get(`/api/${table}?contract_id=${contractId}`).then(setRows).catch(toastError);

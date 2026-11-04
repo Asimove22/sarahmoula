@@ -147,6 +147,16 @@ function FidicTab({ contract, openId, onChange }: { contract: Rec; openId?: numb
           docLink="claim_id"
           docCategory="Réclamation / Mémoire"
           importDocs="Déposez des notices, claims ou courriers (PDF, Word…) : un claim est créé par fichier, avec le document joint"
+          letters={[
+            { id: 'fidic_notice_of_claim', label: 'Notice of Claim' },
+            { id: 'fidic_detailed_claim', label: 'Fully detailed Claim' },
+            ...(String(contract.framework).endsWith('2017')
+              ? [
+                  { id: 'fidic_nod', label: 'Notice of Dissatisfaction' },
+                  { id: 'fidic_daab_referral', label: 'Saisine du DAAB' },
+                ]
+              : []),
+          ]}
           openId={openId}
           onChange={onChange}
           columns={[

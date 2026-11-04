@@ -175,4 +175,5 @@ export const EN_E: Record<string, string> = {
   'Clé API INSEE (facultative)': 'INSEE API key (optional)',
   'seulement si l’INSEE l’exige': 'only if INSEE requires it',
   'Récupérer automatiquement les indices de prix (BT, TP…) auprès de l’INSEE dès leur publication': 'Fetch price indices (BT, TP…) from INSEE automatically as soon as they are published',
+  'Saisine du DAAB': 'Reference to the DAAB',
 };

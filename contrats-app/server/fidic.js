@@ -91,11 +91,11 @@ export function fidicInsights(db, c, { add }) {
   for (const cl of db.prepare("SELECT * FROM claims WHERE contract_id = ? AND status NOT IN ('clos', 'abandonné', 'accepté', 'rejeté')").all(c.id)) {
     const d = fidicClaimDates(cl, c);
     if (!cl.notice_date && d.notice_due && d.notice_due < now)
-      add('critique', `${cl.number} : délai de Notice of Claim dépassé (${d.notice_due})`, 'Risque de forclusion (time-bar). Notifiez immédiatement et documentez la date de connaissance et les circonstances justifiant un dépassement (cl. 20.2.5, 2017).', 'marche', { open: cl.id });
+      add('critique', `${cl.number} : délai de Notice of Claim dépassé (${d.notice_due})`, 'Risque de forclusion (time-bar). Notifiez immédiatement et documentez la date de connaissance et les circonstances justifiant un dépassement (cl. 20.2.5, 2017).', 'marche', { open: cl.id, letter: 'fidic_notice_of_claim' });
     else if (!cl.notice_date && d.notice_due && Date.parse(d.notice_due) - Date.parse(now) <= 7 * 86400000)
-      add('critique', `${cl.number} : Notice of Claim à envoyer avant le ${d.notice_due}`, 'Passé ce délai, le claim est forclos.', 'marche', { open: cl.id });
+      add('critique', `${cl.number} : Notice of Claim à envoyer avant le ${d.notice_due}`, 'Passé ce délai, le claim est forclos.', 'marche', { open: cl.id, letter: 'fidic_notice_of_claim' });
     if (cl.notice_date && !cl.memo_sent_date && d.memo_due && d.memo_due < now)
-      add('critique', `${cl.number} : fully detailed Claim en retard (attendu le ${d.memo_due})`, 'En édition 2017, sans base contractuelle transmise dans le délai, la Notice of Claim est réputée caduque (cl. 20.2.4).', 'marche', { open: cl.id });
+      add('critique', `${cl.number} : fully detailed Claim en retard (attendu le ${d.memo_due})`, 'En édition 2017, sans base contractuelle transmise dans le délai, la Notice of Claim est réputée caduque (cl. 20.2.4).', 'marche', { open: cl.id, letter: 'fidic_detailed_claim' });
   }
 }
 

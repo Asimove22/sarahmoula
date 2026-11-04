@@ -40,6 +40,7 @@ const CONTRACT_LETTERS = [
   { id: 'extension_request', label: 'Demande de prolongation de délai', frameworks: ['FR_PUBLIC', 'FR_PRIVE', 'COMMERCIAL'] },
   { id: 'formal_notice', label: 'Mise en demeure', frameworks: [] as string[] },
   { id: 'dgd_reserves', label: 'Réserves sur le décompte général', frameworks: ['FR_PUBLIC'] },
+  { id: 'fidic_advance_warning', label: 'Advance warning (cl. 8.4)', frameworks: ['FIDIC_RED_2017', 'FIDIC_YELLOW_2017', 'FIDIC_SILVER_2017'] },
 ];
 
 const dateCell = (key: string) => (r: Rec) => fmtDate(r[key]);

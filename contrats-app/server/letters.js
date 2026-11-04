@@ -1,6 +1,7 @@
 // Modèles de courriers contractuels générés au format Word (.docx).
 import { AlignmentType, Document, Packer, Paragraph, TextRun } from 'docx';
 import { addDays } from './deadlines.js';
+import { FIDIC_BOOKS, fidicClaimDates } from './fidic.js';
 
 const fr = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '[date]');
 const money = (n, cur = 'EUR') =>
@@ -10,6 +11,13 @@ const effects = (ew) =>
   [ew.affects_price && 'le montant du contrat', ew.affects_completion && "la date d'achèvement", ew.affects_key_date && 'une Key Date', ew.affects_performance && "la performance de l'ouvrage"]
     .filter(Boolean)
     .join(', ') || '[effets à préciser]';
+
+// FIDIC : numéros de clauses selon l'édition, et « Engineer » ou « Employer » (Silver Book, sans Engineer).
+const FIDIC = Object.keys(FIDIC_BOOKS);
+const FIDIC_2017 = FIDIC.filter((k) => FIDIC_BOOKS[k].edition === 2017);
+const cl17 = (c, a, b) => (FIDIC_BOOKS[c.framework]?.edition === 1999 ? b : a);
+const eng = (c) => (FIDIC_BOOKS[c.framework]?.epc ? 'Employer' : 'Engineer');
+const bookName = (c) => FIDIC_BOOKS[c.framework]?.label ?? 'FIDIC';
 
 /**
  * Chaque modèle : entity = registre source (ou 'contracts'), frameworks = cadres concernés (vide = tous),
@@ -201,6 +209,88 @@ export const TEMPLATES = {
   },
 };
 
+// ---------- FIDIC (versions françaises ; l'anglais est proposé par défaut) ----------
+Object.assign(TEMPLATES, {
+  fidic_notice_of_claim: {
+    label: 'FIDIC – Notice of Claim',
+    entity: 'claims',
+    frameworks: FIDIC,
+    infoType: 'Réclamation',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Notice of Claim ${cl.number ?? ''} – ${cl.title}`,
+      body: [
+        `Conformément à la clause ${cl17(c, '20.2.1', '20.1')} des conditions du contrat ${ref(c)} (${bookName(c)}), nous vous notifions une réclamation au titre de l'événement suivant : ${cl.title}.`,
+        `Nous avons eu connaissance de cet événement le ${fr(cl.dispute_date)}.`,
+        '[Description de l’événement ou de la circonstance]',
+        `Nous considérons avoir droit à une prolongation du délai d'achèvement${cl.extra_days_claimed ? ` (estimation : ${cl.extra_days_claimed} jours)` : ''} et/ou à un paiement supplémentaire${cl.amount_claimed ? ` (estimation : ${money(cl.amount_claimed, c.currency)})` : ''}.`,
+        `Le dossier de réclamation détaillé suivra dans le délai prévu à la clause ${cl17(c, '20.2.4', '20.1')}. Nous tenons des relevés contemporains (contemporary records) que l'${eng(c)} peut consulter.`,
+      ],
+    }),
+  },
+  fidic_detailed_claim: {
+    label: 'FIDIC – Fully detailed Claim',
+    entity: 'claims',
+    frameworks: FIDIC,
+    infoType: 'Réclamation',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Fully detailed Claim ${cl.number ?? ''} – ${cl.title}`,
+      body: [
+        `Suite à notre Notice of Claim du ${fr(cl.notice_date)}, et conformément à la clause ${cl17(c, '20.2.4', '20.1')} du contrat ${ref(c)}, nous vous adressons notre réclamation détaillée.`,
+        '1. Description de l’événement\n[Faits, chronologie, relevés contemporains]',
+        `2. Fondement contractuel et/ou juridique\n[Clauses invoquées : ex. 4.12, 8.5, 13…]`,
+        `3. Relevés contemporains\n[Liste des pièces justificatives jointes]`,
+        `4. Incidences\nProlongation du délai demandée : ${cl.extra_days_claimed ?? '[nombre]'} jours\nPaiement supplémentaire demandé : ${money(cl.amount_claimed, c.currency)}\n[Détail du calcul en annexe]`,
+        `Nous vous remercions de procéder à l'accord ou à la détermination prévus à la clause ${cl17(c, '3.7', '3.5')}.`,
+      ],
+    }),
+  },
+  fidic_nod: {
+    label: 'FIDIC – Notice of Dissatisfaction',
+    entity: 'claims',
+    frameworks: FIDIC_2017,
+    infoType: 'Réclamation',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Notice of Dissatisfaction – détermination relative au claim ${cl.number ?? ''}`,
+      body: [
+        `Nous avons reçu le ${fr(cl.response_date)} la détermination de l'${eng(c)} relative au claim ${cl.number ?? ''} « ${cl.title} ».`,
+        `Conformément à la clause 3.7.5 du contrat ${ref(c)}, nous vous notifions notre désaccord (Notice of Dissatisfaction) avec cette détermination, pour les motifs suivants :`,
+        cl.decision ? `Détermination contestée : ${cl.decision}` : '',
+        '[Motifs du désaccord, points contestés]',
+        'Nous nous réservons le droit de soumettre ce différend au DAAB conformément à la clause 21.4.',
+      ],
+    }),
+  },
+  fidic_daab_referral: {
+    label: 'FIDIC – Saisine du DAAB',
+    entity: 'claims',
+    frameworks: FIDIC_2017,
+    infoType: 'Réclamation',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Saisine du DAAB – différend relatif au claim ${cl.number ?? ''}`,
+      body: [
+        `Conformément à la clause 21.4 du contrat ${ref(c)}, nous soumettons au Dispute Avoidance/Adjudication Board le différend suivant, ayant fait l'objet d'une Notice of Dissatisfaction : ${cl.title}.`,
+        '[Exposé du différend, position et demandes]',
+        `Montant en jeu : ${money(cl.amount_claimed, c.currency)}${cl.extra_days_claimed ? ` ; prolongation demandée : ${cl.extra_days_claimed} jours` : ''}.`,
+        'Copie de la présente est adressée à l’autre Partie.',
+      ],
+    }),
+  },
+  fidic_advance_warning: {
+    label: 'FIDIC – Advance warning (cl. 8.4)',
+    entity: 'contracts',
+    frameworks: FIDIC_2017,
+    infoType: 'Délais',
+    build: ({ contract: c }) => ({
+      subject: 'Advance warning – clause 8.4',
+      body: [
+        `Conformément à la clause 8.4 du contrat ${ref(c)}, nous vous avertissons d'un événement ou d'une circonstance susceptible d'affecter les travaux, d'augmenter le prix du contrat ou de retarder l'achèvement :`,
+        '[Description de l’événement, effets probables]',
+        'Nous proposons d’en examiner les conséquences et les mesures à prendre lors d’une prochaine réunion.',
+      ],
+    }),
+  },
+});
+
 // ---------- Versions anglaises (contrats NEC, rédigés en anglais) ----------
 const enDate = (iso) => (iso ? new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '[date]');
 const enMoney = (n, cur = 'EUR') => (n === null || n === undefined ? '[amount]' : new Intl.NumberFormat('en-GB', { style: 'currency', currency: cur || 'EUR' }).format(n));
@@ -283,14 +373,86 @@ const EN_TEMPLATES = {
       body: [
         `By payment application ${p.number ?? ''} dated ${enDate(p.submitted_date)}${p.period ? ` (period: ${p.period})` : ''}, we applied for payment of ${enMoney(p.amount_validated ?? p.amount_requested, c.currency)} under the contract ${enRef(c)}.`,
         `Payment was due on ${enDate(p.due_date || p.computed_due_date)} and has not been received to date.`,
-        'Please arrange payment without further delay. We reserve our right to interest on late payment as provided by the contract.',
+        FIDIC.includes(c.framework)
+          ? 'Please arrange payment without further delay. In accordance with Sub-Clause 14.8, we are entitled to receive financing charges compounded monthly on the amount unpaid during the period of delay, without formal notice.'
+          : 'Please arrange payment without further delay. We reserve our right to interest on late payment as provided by the contract.',
       ],
     }),
   },
 };
 
-/** Langue par défaut d'un courrier : anglais pour un contrat NEC (si le modèle existe), français sinon. */
-export const defaultLetterLang = (contract, templateId) => (['NEC3', 'NEC4'].includes(contract?.framework) && EN_TEMPLATES[templateId] ? 'en' : 'fr');
+// ---------- FIDIC en anglais (langue usuelle de ces contrats) ----------
+Object.assign(EN_TEMPLATES, {
+  fidic_notice_of_claim: {
+    label: 'Notice of Claim',
+    build: ({ contract: c, entity: cl }) => {
+      const d = fidicClaimDates(cl, c);
+      return {
+        subject: `Notice of Claim ${cl.number ?? ''} – ${cl.title}`,
+        body: [
+          `In accordance with Sub-Clause ${cl17(c, '20.2.1', '20.1')} of the Conditions of Contract for the contract ${enRef(c)} (${bookName(c)}), we hereby give notice of a Claim in respect of the following event or circumstance: ${cl.title}.`,
+          `We became aware of this event or circumstance on ${enDate(cl.dispute_date)}. This Notice is given within the period of ${cl17(c, '28 days', '28 days')} stated in the Contract${d.notice_due ? ` (expiring on ${enDate(d.notice_due)})` : ''}.`,
+          '[Description of the event or circumstance giving rise to the Claim]',
+          `We consider that we are entitled to an extension of the Time for Completion${cl.extra_days_claimed ? ` (estimated at ${cl.extra_days_claimed} days)` : ''} and/or additional payment${cl.amount_claimed ? ` (estimated at ${enMoney(cl.amount_claimed, c.currency)})` : ''} under the Contract.`,
+          `We are keeping contemporary records to substantiate this Claim, which the ${eng(c)} may monitor and inspect. Our fully detailed Claim will follow within the period stated in Sub-Clause ${cl17(c, '20.2.4', '20.1')}.`,
+        ],
+      };
+    },
+  },
+  fidic_detailed_claim: {
+    label: 'Fully detailed Claim',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Fully detailed Claim ${cl.number ?? ''} – ${cl.title}`,
+      body: [
+        `Further to our Notice of Claim dated ${enDate(cl.notice_date)}, and in accordance with Sub-Clause ${cl17(c, '20.2.4', '20.1')} of the Contract ${enRef(c)}, we hereby submit our fully detailed Claim.`,
+        '1. Detailed description of the event or circumstance\n[Facts and chronology]',
+        `2. Contractual and/or other legal basis of the Claim\n[Sub-Clauses relied upon, e.g. 4.12, 8.5, 13]`,
+        '3. Contemporary records\n[List of supporting records attached]',
+        `4. Supporting particulars\nExtension of Time for Completion claimed: ${cl.extra_days_claimed ?? '[number]'} days\nAdditional payment claimed: ${enMoney(cl.amount_claimed, c.currency)}\n[Detailed calculation attached]`,
+        `We request the ${eng(c)} to proceed under Sub-Clause ${cl17(c, '3.7', '3.5')} to agree or determine the Claim.`,
+      ],
+    }),
+  },
+  fidic_nod: {
+    label: 'Notice of Dissatisfaction (Sub-Clause 3.7.5)',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Notice of Dissatisfaction – ${eng(c)}’s determination of Claim ${cl.number ?? ''}`,
+      body: [
+        `We refer to the ${eng(c)}’s determination received on ${enDate(cl.response_date)} in respect of Claim ${cl.number ?? ''} "${cl.title}".`,
+        `In accordance with Sub-Clause 3.7.5 of the Contract ${enRef(c)}, we hereby give a Notice of Dissatisfaction with this determination, within 28 days of receiving it, for the following reasons:`,
+        cl.decision ? `Determination disputed: ${cl.decision}` : '',
+        '[Reasons for dissatisfaction and parts of the determination disputed]',
+        'We reserve our right to refer the resulting Dispute to the DAAB under Sub-Clause 21.4.',
+      ],
+    }),
+  },
+  fidic_daab_referral: {
+    label: 'Reference of a Dispute to the DAAB (Sub-Clause 21.4)',
+    build: ({ contract: c, entity: cl }) => ({
+      subject: `Reference of Dispute to the DAAB – Claim ${cl.number ?? ''}`,
+      body: [
+        `In accordance with Sub-Clause 21.4.1 of the Contract ${enRef(c)}, we hereby refer to the Dispute Avoidance/Adjudication Board the following Dispute, which was the subject of a Notice of Dissatisfaction: ${cl.title}.`,
+        '[Statement of the Dispute, our position and the relief sought]',
+        `Amount in dispute: ${enMoney(cl.amount_claimed, c.currency)}${cl.extra_days_claimed ? `; extension of time claimed: ${cl.extra_days_claimed} days` : ''}.`,
+        'A copy of this reference is sent simultaneously to the other Party and to the Engineer.',
+      ],
+    }),
+  },
+  fidic_advance_warning: {
+    label: 'Advance warning (Sub-Clause 8.4)',
+    build: ({ contract: c }) => ({
+      subject: 'Advance warning – Sub-Clause 8.4',
+      body: [
+        `In accordance with Sub-Clause 8.4 of the Contract ${enRef(c)}, we hereby advise you of the following known or probable future event or circumstance which may adversely affect the work, increase the Contract Price and/or delay the execution of the Works:`,
+        '[Description of the event or circumstance and its probable effects]',
+        'We propose to discuss its consequences and the measures to be taken at the next progress meeting.',
+      ],
+    }),
+  },
+});
+
+/** Langue par défaut d'un courrier : anglais pour un contrat NEC ou FIDIC (si le modèle existe), français sinon. */
+export const defaultLetterLang = (contract, templateId) => ((['NEC3', 'NEC4'].includes(contract?.framework) || FIDIC.includes(contract?.framework)) && EN_TEMPLATES[templateId] ? 'en' : 'fr');
 
 export function listTemplates(contract) {
   return Object.entries(TEMPLATES)
