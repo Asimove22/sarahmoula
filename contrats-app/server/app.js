@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { DOC_LINKS, columnsOf, toSql, logJournal, getSettings, setSettings } from './db.js';
 import { parseInvoice, parseLetter } from './invoice.js';
 import { classifyCorrespondence } from './classify.js';
@@ -826,38 +827,84 @@ export function createApp({ db, dataDir, onShutdown }) {
   };
 
   // ---------- Création d'un contrat à partir de son document : lecture et pré-remplissage ----------
-  app.post('/api/contracts/analyze', upload.array('files'), h(async (req) => {
-    const file = req.files?.[0];
-    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
-    let { text } = await extractDocumentText(file.originalname, file.buffer);
-    let ocrUsed = false;
-    if ((text ?? '').length < 200 && ocrEnabled()) {
-      const r = await ocr.readBuffer(file.originalname, file.buffer).catch(() => ({ text: '' }));
-      if (r.text?.length > (text ?? '').length) { text = r.text; ocrUsed = true; }
-    }
-    if (!text || text.length < 50) return { values: {}, sources: {}, method: 'aucune', warning: 'Aucun texte lisible : document scanné sans OCR, protégé ou vide. Remplissez la fiche à la main ; le document sera archivé.' };
-    const rules = analyzeContractText(text);
-    let result = { ...rules, fromAi: [] };
-    let method = 'règles';
-    let aiError = null;
-    if (req.body.use_ai !== '0' && effectiveMode(db, null) !== 'off') {
-      try {
-        const ai = await extractContractFields(db, text);
-        result = mergeAi(rules, ai);
-        method = `règles + IA (${ai.provider === 'claude' ? 'Claude' : 'locale'})`;
-      } catch (e) {
-        aiError = e.message;
-      }
-    }
-    const v = result.values;
-    // Date d'achèvement déduite du délai d'exécution quand le contrat ne la donne pas.
+  // L'analyse tourne en tâche de fond : l'interface suit les étapes (lecture, OCR, règles, IA) et la progression.
+  const analyses = new Map();
+  const OCR_ANALYSIS_PAGES = 40; // l'identification du contrat est en tête de document ; le reste passe à l'OCR après archivage
+  const finishDates = (v) => {
     if (!v.completion_date && v.start_date && v._duration) {
       const [n, unit] = v._duration.split(' ');
       v.completion_date = unit === 'mois' ? addMonths(v.start_date, Number(n)) : addDays(v.start_date, Number(n) * (unit === 'semaines' ? 7 : 1));
     }
     const duration = v._duration;
     delete v._duration;
-    return { values: v, sources: result.sources, from_ai: result.fromAi, method, ai_error: aiError, duration, ocr: ocrUsed, chars: text.length };
+    return duration;
+  };
+
+  async function runAnalysis(job, file, useAi) {
+    const step = (stage, progress, message) => Object.assign(job, { stage, progress, message });
+    step('lecture', 5, 'Lecture du texte du document');
+    let { text } = await extractDocumentText(file.originalname, file.buffer);
+    let ocrUsed = false;
+    if ((text ?? '').length < 200 && ocrEnabled()) {
+      step('ocr', 10, 'Document scanné : reconnaissance du texte (OCR)');
+      const r = await ocr.readBuffer(file.originalname, file.buffer, {
+        maxPages: OCR_ANALYSIS_PAGES,
+        onPage: (n, total) => step('ocr', 10 + Math.round((50 * n) / total), `OCR : page ${n} sur ${total}`),
+      }).catch(() => ({ text: '' }));
+      if (r.text?.length > (text ?? '').length) { text = r.text; ocrUsed = true; }
+    }
+    if (!text || text.length < 50) {
+      return { values: {}, sources: {}, method: 'aucune', warning: 'Aucun texte lisible : document scanné sans OCR, protégé ou vide. Remplissez la fiche à la main ; le document sera archivé.' };
+    }
+    step('règles', 65, 'Repérage des informations du contrat');
+    const rules = analyzeContractText(text);
+    const rulesValues = { ...rules.values };
+    const rulesDuration = finishDates(rulesValues);
+    const base = { sources: rules.sources, from_ai: [], duration: rulesDuration, ocr: ocrUsed, chars: text.length };
+    job.partial = { ...base, values: rulesValues, method: 'règles' };
+    if (!useAi || effectiveMode(db, null) === 'off') return job.partial;
+    const mode = effectiveMode(db, null);
+    Object.assign(job, { stage: 'ia', progress: 70, ai_started: Date.now(), ai_expected: mode === 'claude' ? 45 : 150, message: mode === 'claude' ? 'Analyse par l’IA (Claude)' : 'Analyse par l’IA locale (Ollama) : peut prendre quelques minutes' });
+    try {
+      const ai = await extractContractFields(db, text);
+      const merged = mergeAi(rules, ai);
+      const duration = finishDates(merged.values);
+      return { ...base, values: merged.values, sources: merged.sources, from_ai: merged.fromAi, duration, method: `règles + IA (${ai.provider === 'claude' ? 'Claude' : 'locale'})` };
+    } catch (e) {
+      return { ...job.partial, ai_error: e.message };
+    }
+  }
+
+  /** Dépôt d'un contrat : lance l'analyse et renvoie son identifiant (ou le résultat avec ?wait=1). */
+  app.post('/api/contracts/analyze', upload.array('files'), h(async (req) => {
+    const file = req.files?.[0];
+    if (!file) throw new HttpError(400, 'Aucun fichier reçu');
+    const id = crypto.randomUUID();
+    const job = { id, name: file.originalname, stage: 'reçu', progress: 2, message: 'Fichier reçu', started: Date.now(), partial: null, result: null, error: null };
+    analyses.set(id, job);
+    for (const [k, j] of analyses) if (Date.now() - j.started > 30 * 60_000) analyses.delete(k);
+    const done = runAnalysis(job, file, req.body.use_ai !== '0')
+      .then((result) => Object.assign(job, { result, stage: 'terminé', progress: 100, message: 'Analyse terminée' }))
+      .catch((e) => Object.assign(job, { error: e.message, stage: 'erreur', progress: 100, message: e.message }));
+    if (req.query.wait) {
+      await done;
+      if (job.error) throw new HttpError(500, job.error);
+      return job.result;
+    }
+    return { job_id: id };
+  }));
+  app.get('/api/contracts/analyze/:id', h((req) => {
+    const job = analyses.get(req.params.id);
+    if (!job) throw new HttpError(404, 'Analyse introuvable (expirée ou application redémarrée)');
+    let { progress } = job;
+    let { message } = job;
+    // L'IA ne donne pas d'avancement : estimation sur la durée habituelle, plafonnée à 95 %.
+    if (job.stage === 'ia') {
+      const elapsed = Math.round((Date.now() - job.ai_started) / 1000);
+      progress = Math.min(95, 70 + Math.round((25 * elapsed) / job.ai_expected));
+      message = `${job.message} – ${elapsed} s`;
+    }
+    return { id: job.id, name: job.name, stage: job.stage, progress, message, partial: job.partial, result: job.result, error: job.error };
   }));
 
   app.get('/api/contracts/:id/agreement', h((req) => agreementSummary(db, getRow('contracts', req.params.id))));

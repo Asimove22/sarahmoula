@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileSpreadsheet, Plus, Sparkles } from 'lucide-react';
 import { api, type Rec } from '../api';
@@ -115,23 +115,63 @@ function NewContract({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<Rec | null>(null);
   const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<Rec | null>(null);
+  const [aiReady, setAiReady] = useState<Rec | null>(null);
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   const label = (k: string) => t(CONTRACT_FIELDS.find((f) => f.name === k)?.label ?? EXTRA_LABELS[k] ?? k);
+  useEffect(() => () => { if (poll.current) clearInterval(poll.current); }, []);
+
+  const apply = (out: Rec, f: File | null, notify = true) => {
+    setAnalysis(out);
+    setInitial({ ...DEFAULTS, ...out.values, title: out.values.title ?? f?.name.replace(/\.[^.]+$/, '') });
+    setFormKey((k) => k + 1);
+    const n = Object.keys(out.values).length;
+    if (notify) toast(n ? t('{n} champ(s) pré-rempli(s) : vérifiez-les avant de créer le contrat', { n }) : out.warning ?? t('Aucune information reconnue : remplissez la fiche'), n ? 'ok' : 'error');
+  };
+  const stopPolling = () => {
+    if (poll.current) clearInterval(poll.current);
+    poll.current = null;
+    setBusy(false);
+  };
 
   const analyze = async (files: File[]) => {
     const f = files[0];
+    stopPolling();
     setFile(f);
+    setAnalysis(null);
+    setAiReady(null);
+    setJob({ stage: 'envoi', progress: 1, message: t('Envoi du fichier') });
     setBusy(true);
     try {
-      const out = await api.upload<Rec>('/api/contracts/analyze', [f]);
-      setAnalysis(out);
-      setInitial({ ...DEFAULTS, ...out.values, title: out.values.title ?? f.name.replace(/\.[^.]+$/, '') });
-      setFormKey((k) => k + 1);
-      const n = Object.keys(out.values).length;
-      toast(n ? t('{n} champ(s) pré-rempli(s) : vérifiez-les avant de créer le contrat', { n }) : out.warning ?? t('Aucune information reconnue : remplissez la fiche'), n ? 'ok' : 'error');
+      const { job_id } = await api.upload<Rec>('/api/contracts/analyze', [f]);
+      let partialShown = false;
+      poll.current = setInterval(async () => {
+        try {
+          const j = await api.get<Rec>(`/api/contracts/analyze/${job_id}`);
+          setJob(j);
+          // La lecture par règles est prête : la fiche est pré-remplie sans attendre l'IA.
+          if (j.partial && !partialShown && j.stage === 'ia') {
+            partialShown = true;
+            apply(j.partial, f, false);
+          }
+          if (j.stage === 'terminé') {
+            stopPolling();
+            if (partialShown && j.result.from_ai?.length) setAiReady(j.result);
+            else if (!partialShown) apply(j.result, f);
+            else setAnalysis(j.result);
+          } else if (j.stage === 'erreur') {
+            stopPolling();
+            toast(j.error, 'error');
+          }
+        } catch (e) {
+          stopPolling();
+          toastError(e);
+        }
+      }, 800);
     } catch (e) {
+      stopPolling();
+      setJob(null);
       toastError(e);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -155,8 +195,17 @@ function NewContract({ onClose, onCreated }: { onClose: () => void; onCreated: (
         <FileDrop
           multiple={false}
           onFiles={analyze}
-          label={busy ? t('Lecture du contrat… (un scan peut prendre quelques minutes)') : file ? t('{name} — déposez un autre fichier pour recommencer', { name: file.name }) : t('Déposez le contrat (PDF, Word…) : Clausia le lit et remplit la fiche, vous corrigez si besoin')}
+          label={file ? t('{name} — déposez un autre fichier pour recommencer', { name: file.name }) : t('Déposez le contrat (PDF, Word…) : Clausia le lit et remplit la fiche, vous corrigez si besoin')}
         />
+        {job && (busy || job.stage === 'erreur') && <AnalysisProgress job={job} onSkipAi={job.stage === 'ia' ? () => { stopPolling(); setJob(null); } : undefined} />}
+        {aiReady && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-brand-300 bg-white p-3 text-sm">
+            <Sparkles size={16} className="text-brand-600" />
+            <span className="mr-auto">{t('L’IA a terminé : {n} valeur(s) proposée(s) en plus ou corrigée(s).', { n: aiReady.from_ai.length })}</span>
+            <button className="btn-primary" onClick={() => { apply(aiReady, file); setAiReady(null); }}>{t('Appliquer la lecture IA')}</button>
+            <button className="btn-ghost" onClick={() => setAiReady(null)}>{t('Garder ma fiche')}</button>
+          </div>
+        )}
         {analysis && (
           <div className="rounded-md border border-brand-200 bg-brand-50/40 p-3 text-sm">
             <div className="mb-1 flex flex-wrap items-center gap-2 font-medium">
@@ -186,5 +235,44 @@ function NewContract({ onClose, onCreated }: { onClose: () => void; onCreated: (
       </div>
       <EntityForm key={formKey} fields={CONTRACT_FIELDS} initial={initial} submitLabel="Créer le contrat" onCancel={onClose} onSubmit={create} />
     </Modal>
+  );
+}
+
+const STAGES = [
+  { id: 'lecture', label: 'Lecture' },
+  { id: 'ocr', label: 'OCR' },
+  { id: 'règles', label: 'Repérage' },
+  { id: 'ia', label: 'IA' },
+  { id: 'terminé', label: 'Terminé' },
+];
+
+/** Barre de progression de la lecture / analyse du contrat déposé. */
+function AnalysisProgress({ job, onSkipAi }: { job: Rec; onSkipAi?: () => void }) {
+  const error = job.stage === 'erreur';
+  // L'étape OCR n'apparaît que pour un document scanné.
+  const stages = STAGES.filter((s) => s.id !== 'ocr' || job.stage === 'ocr' || job.partial?.ocr || job.result?.ocr);
+  const current = stages.findIndex((s) => s.id === job.stage);
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3" role="status" aria-live="polite">
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+        <span className={error ? 'font-medium text-red-700' : 'font-medium text-slate-700'}>{job.message}</span>
+        <span className="tabular-nums text-slate-500">{job.progress} %</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={job.progress}>
+        <div className={`h-full rounded-full transition-all duration-700 ${error ? 'bg-red-600' : 'bg-brand-600'} ${job.stage === 'ia' ? 'animate-pulse' : ''}`} style={{ width: `${job.progress}%` }} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {stages.map((s, i) => (
+          <span key={s.id} className={i < current ? 'text-emerald-700' : i === current ? 'font-semibold text-brand-700' : 'text-slate-400'}>
+            {i < current ? '✓ ' : ''}{t(s.label)}
+          </span>
+        ))}
+        {onSkipAi && (
+          <button type="button" className="ml-auto text-xs text-brand-700 underline" onClick={onSkipAi}>
+            {t('Ne pas attendre l’IA (fiche déjà pré-remplie)')}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

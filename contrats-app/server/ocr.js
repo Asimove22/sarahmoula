@@ -72,9 +72,9 @@ export function createOcr(db, dataDir, { onDocumentText } = {}) {
   }
 
   /** Texte d'un PDF scanné : OCR de la plus grande image de chaque page. */
-  async function ocrPdf(buffer) {
+  async function ocrPdf(buffer, { maxPages = MAX_PAGES, onPage } = {}) {
     const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const pages = Math.min(pdf.numPages, MAX_PAGES);
+    const pages = Math.min(pdf.numPages, maxPages);
     const texts = [];
     const confidences = [];
     for (let n = 1; n <= pages; n++) {
@@ -84,6 +84,7 @@ export function createOcr(db, dataDir, { onDocumentText } = {}) {
       } catch {
         images = [];
       }
+      onPage?.(n, pages);
       const largest = images.sort((a, b) => b.width * b.height - a.width * a.height)[0];
       if (!largest || largest.width < 200 || largest.height < 200) continue;
       const { text, confidence } = await recognize(toPnm(largest));
@@ -128,9 +129,9 @@ export function createOcr(db, dataDir, { onDocumentText } = {}) {
 
   return {
     /** OCR immédiat d'un fichier qui n'est pas encore archivé (analyse d'un contrat scanné à la création). */
-    async readBuffer(filename, buffer) {
+    async readBuffer(filename, buffer, opts = {}) {
       const ext = filename.toLowerCase().split('.').pop();
-      if (ext === 'pdf') return ocrPdf(buffer);
+      if (ext === 'pdf') return ocrPdf(buffer, opts);
       if (IMAGE_EXT.includes(ext)) return recognize(buffer);
       return { text: '', confidence: 0 };
     },

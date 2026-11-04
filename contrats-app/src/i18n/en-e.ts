@@ -176,4 +176,12 @@ export const EN_E: Record<string, string> = {
   'seulement si l’INSEE l’exige': 'only if INSEE requires it',
   'Récupérer automatiquement les indices de prix (BT, TP…) auprès de l’INSEE dès leur publication': 'Fetch price indices (BT, TP…) from INSEE automatically as soon as they are published',
   'Saisine du DAAB': 'Reference to the DAAB',
+  'Envoi du fichier': 'Uploading the file',
+  'Lecture': 'Reading',
+  'Repérage': 'Extraction',
+  'Terminé': 'Done',
+  'L’IA a terminé : {n} valeur(s) proposée(s) en plus ou corrigée(s).': 'The AI has finished: {n} additional or corrected value(s) proposed.',
+  'Appliquer la lecture IA': 'Apply the AI reading',
+  'Garder ma fiche': 'Keep my form',
+  'Ne pas attendre l’IA (fiche déjà pré-remplie)': 'Don’t wait for the AI (form already pre-filled)',
 };

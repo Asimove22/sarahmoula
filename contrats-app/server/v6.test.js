@@ -150,7 +150,7 @@ test('analyse d’un contrat déposé à la création', async () => {
   const buf = await Packer.toBuffer(new Document({ sections: [{ children: lines.map((l) => new Paragraph(l)) }] }));
   const form = new FormData();
   form.append('files', new Blob([buf]), 'AE-lot3.docx');
-  const out = await (await fetch(`${base}/api/contracts/analyze`, { method: 'POST', body: form })).json();
+  const out = await (await fetch(`${base}/api/contracts/analyze?wait=1`, { method: 'POST', body: form })).json();
   const v = out.values;
   assert.equal(out.method, 'règles');
   assert.equal(v.framework, 'FR_PUBLIC');
@@ -182,7 +182,7 @@ test('analyse d’un contrat déposé à la création', async () => {
   // FIDIC en anglais.
   const fidic = new FormData();
   fidic.append('files', new Blob([Buffer.from('Contract Agreement – FIDIC Conditions of Contract for Plant and Design-Build, Yellow Book 2017\nThe Employer: Water Authority of Oran\nAccepted Contract Amount: USD 12,500,000.00\nCommencement Date: 2026-05-04')]), 'contract.txt');
-  const f = (await (await fetch(`${base}/api/contracts/analyze`, { method: 'POST', body: fidic })).json()).values;
+  const f = (await (await fetch(`${base}/api/contracts/analyze?wait=1`, { method: 'POST', body: fidic })).json()).values;
   assert.equal(f.framework, 'FIDIC_YELLOW_2017');
   assert.equal(f.currency, 'USD');
   assert.equal(f.amount, 12500000);
@@ -292,4 +292,25 @@ test('courriers FIDIC en anglais (2017 et 1999)', async () => {
   assert.ok(!(await api('GET', `/api/letters/templates?contract_id=${old.id}`)).some((t) => t.id === 'fidic_nod'), 'NOD : édition 2017 seulement');
   const ins = await api('GET', `/api/insights?contract_id=${c.id}`);
   assert.ok(ins.some((i) => i.letter === 'fidic_notice_of_claim'));
+});
+
+test('analyse du contrat en tâche de fond : étapes et progression', async () => {
+  await api('PUT', '/api/ai/mode', { mode: 'off' });
+  const form = new FormData();
+  form.append('files', new Blob([Buffer.from('Marché n° 2026-X-01\nObjet du marché : Réhabilitation du pont\nMontant total du marché hors taxes : 500 000,00 €\nLe CCAG Travaux 2021 est applicable.')]), 'ae.txt');
+  const { job_id } = await (await fetch(`${base}/api/contracts/analyze`, { method: 'POST', body: form })).json();
+  assert.ok(job_id);
+  let job;
+  for (let i = 0; i < 50; i++) {
+    job = await api('GET', `/api/contracts/analyze/${job_id}`);
+    assert.ok(job.progress >= 0 && job.progress <= 100);
+    if (job.stage === 'terminé') break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.equal(job.stage, 'terminé');
+  assert.equal(job.progress, 100);
+  assert.equal(job.result.values.reference, '2026-X-01');
+  assert.equal(job.result.values.amount, 500000);
+  assert.equal((await fetch(`${base}/api/contracts/analyze/inconnu`)).status, 404);
+  await api('PUT', '/api/ai/mode', { mode: 'ollama' });
 });
