@@ -1340,7 +1340,15 @@ export function createApp({ db, dataDir, onShutdown }) {
   }));
 
   // ---------- Système : état, sauvegardes, arrêt ----------
-  app.get('/api/health', h(() => ({ ok: true, app: 'contrats-app', version: APP_VERSION })));
+  // Dossier de l'application et des données : permet de savoir quelle installation répond sur le port.
+  app.get('/api/health', h(() => ({
+    ok: true,
+    app: 'contrats-app',
+    version: APP_VERSION,
+    root: path.resolve(import.meta.dirname, '..'),
+    data_dir: path.resolve(dataDir),
+    contracts: db.prepare('SELECT COUNT(*) AS n FROM contracts').get().n,
+  })));
   app.get('/api/backups', h(() => listBackups(dataDir)));
   app.post('/api/system/shutdown', h((req, res) => {
     res.json({ ok: true });

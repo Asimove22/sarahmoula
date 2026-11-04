@@ -23,12 +23,26 @@ function Open-AppWindow {
   try { Start-Process 'msedge' -ArgumentList "--app=$url" } catch { Start-Process $url }
 }
 
-function Test-Clausia {
-  try { return (Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2 -UseBasicParsing).app -eq 'contrats-app' } catch { return $false }
+function Get-Health {
+  try { return Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 5 -UseBasicParsing } catch { return $null }
 }
+function Test-Clausia { $h = Get-Health; return ($h -and $h.app -eq 'contrats-app') }
 
-# Déjà démarrée : on ouvre simplement la fenêtre.
-if (Test-Clausia) { Open-AppWindow; exit 0 }
+# Une installation de Clausia répond déjà : si c'est une autre (ancien dossier), on le dit au lieu d'ouvrir
+# une fenêtre trompeuse (autre version, autres données).
+$running = Get-Health
+if ($running -and $running.app -eq 'contrats-app') {
+  $other = $running.root -and ((Resolve-Path $running.root -ErrorAction SilentlyContinue).Path -ne (Resolve-Path $root).Path)
+  if (-not $running.root -or $other) {
+    if ($SansFenetre) { exit 0 }
+    $where = if ($running.root) { $running.root } else { 'un ancien dossier (version antérieure à 5.0.6)' }
+    Show-Message "Une autre installation de Clausia est déjà lancée :`n$where`nversion $($running.version)`n`nArrêtez-la (dans Clausia : Paramètres → Arrêter l'application, ou Gestionnaire des tâches → Node.js JavaScript Runtime → Fin de tâche), puis relancez cette icône.`n`nCette icône lance : $root"
+    Open-AppWindow
+    exit 0
+  }
+  Open-AppWindow
+  exit 0
+}
 
 # Une copie est en train de démarrer (démarrage automatique, PC encore lent après l'ouverture de session) :
 # on attend qu'elle réponde au lieu d'en lancer une seconde.
@@ -81,6 +95,6 @@ if ($SansFenetre) { exit 1 }
 # Toujours en cours de démarrage (pas d'erreur) : on ouvre la fenêtre, la page s'affichera dès que possible.
 if (-not $server.HasExited) { Open-AppWindow; exit 0 }
 $detail = ''
-if (Test-Path $errLog) { $detail = (Get-Content $errLog -Tail 8 -ErrorAction SilentlyContinue) -join "`n" }
+if (Test-Path $errLog) { $detail = (Get-Content $errLog -Tail 8 -Encoding UTF8 -ErrorAction SilentlyContinue) -join "`n" }
 $hint = if ($detail -match 'EADDRINUSE|4580 est d') { "Le port 4580 est occupé par un autre programme (souvent une ancienne copie de Clausia) : redémarrez le PC." } else { "Lancez Lancer.bat dans ce dossier pour voir le détail." }
 Show-Message "Clausia n'a pas démarré.`n`n$hint`n`nDossier : $root`n`n$detail"
